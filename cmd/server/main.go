@@ -9,10 +9,13 @@ import (
 	"os"
 	"os/signal"
 	"time"
+
+	"github.com/mikecsmith/httplab/internal/logger"
 )
 
 func main() {
 	ctx := context.Background()
+	logger.Init()
 	if err := run(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
