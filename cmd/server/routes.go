@@ -24,4 +24,6 @@ func (c middlewareChain) then(h http.Handler) http.Handler {
 func addRoutes(mux *http.ServeMux) {
 	baseChain := middlewareChain{middleware.RequestContext}
 	mux.Handle("GET /hello", baseChain.thenFunc(handle.Hello()))
+	mux.Handle("GET /echo", baseChain.thenFunc(handle.EchoGet()))
+	mux.Handle("POST /echo", baseChain.thenFunc(handle.EchoPost()))
 }
