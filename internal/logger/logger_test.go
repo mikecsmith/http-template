@@ -58,10 +58,14 @@ func TestAttrs(t *testing.T) {
 
 		parentAttrs := logger.Attrs(parent)
 		childAttrs := logger.Attrs(child)
-		_ = parentAttrs
-		_ = childAttrs
 
-		t.Skip("KOAN: assert parentAttrs has length 1 and childAttrs has length 2")
+		if len(parentAttrs) != 1 {
+			t.Fatalf("got %d attrs, want 1", len(parentAttrs))
+		}
+
+		if len(childAttrs) != 2 {
+			t.Fatalf("got %d attrs, want 2", len(childAttrs))
+		}
 	})
 }
 
@@ -87,26 +91,43 @@ func TestContextHandler(t *testing.T) {
 		)
 		l.InfoContext(ctx, "request started")
 
-		_ = buf
-
-		t.Skip("KOAN: assert that buf.String() contains both \"req-456\" and \"GET\"")
+		for _, want := range []string{"req-456", "GET"} {
+			if !bytes.Contains(buf.Bytes(), []byte(want)) {
+				t.Errorf("expected %q in output, got: %s", want, buf.String())
+			}
+		}
 	})
 
 	t.Run("handler-level attrs and context attrs coexist", func(t *testing.T) {
 		l, buf := testHandler(t)
 
-		_ = l
-		_ = buf
+		hl := l.With("service", "httplab")
+		ctx := logger.WithAttrs(context.Background(),
+			slog.String("request_id", "req-789"),
+		)
+		hl.InfoContext(ctx, "request started")
 
-		t.Skip("KOAN: create a derived logger using l.With() that bakes in a \"service\" attr with value \"httplab\", then log with context attrs and assert both appear in output")
+		if !bytes.Contains(buf.Bytes(), []byte("service=httplab")) {
+			t.Errorf("expected service=httplab in output. Output: %s", buf.String())
+		}
+		if !bytes.Contains(buf.Bytes(), []byte("request_id=req-789")) {
+			t.Errorf("expected request_id=req-789 in output. Output: %s", buf.String())
+		}
 	})
 
 	t.Run("WithGroup delegates to inner handler", func(t *testing.T) {
-		_, buf := testHandler(t)
+		var buf bytes.Buffer
+		inner := slog.NewTextHandler(&buf, nil)
+		h := logger.NewContextHandler(inner)
+		nh := h.WithGroup("request")
+		ctx := logger.WithAttrs(context.Background(), slog.String("method", "GET"))
+		l := slog.New(nh)
 
-		_ = buf
+		l.InfoContext(ctx, "request started")
 
-		t.Skip("KOAN: create a handler with NewContextHandler, call WithGroup(\"request\"), build a logger, log with a \"method\" attr, assert output contains \"request.method\"")
+		if !bytes.Contains(buf.Bytes(), []byte("request.method=GET")) {
+			t.Errorf("expected request.method=GET in output. Output: %s", buf.String())
+		}
 	})
 
 	t.Run("Enabled delegates to inner handler", func(t *testing.T) {
@@ -115,8 +136,11 @@ func TestContextHandler(t *testing.T) {
 		})
 		h := logger.NewContextHandler(inner)
 
-		_ = h
-
-		t.Skip("KOAN: assert h.Enabled returns false for LevelInfo and true for LevelWarn")
+		if h.Enabled(context.Background(), slog.LevelInfo) == true {
+			t.Fatal("expected false got true for log level info")
+		}
+		if h.Enabled(context.Background(), slog.LevelWarn) == false {
+			t.Fatal("expected true got false for log level warn")
+		}
 	})
 }
