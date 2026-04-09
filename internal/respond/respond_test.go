@@ -29,19 +29,19 @@ func TestWithOK(t *testing.T) {
 		}
 	})
 
-	t.Run("wraps data in success envelope", func(t *testing.T) {
+	t.Run("writes data directly as JSON body without envelope", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		respond.WithOK(w, newRequest(t), map[string]string{"hello": "world"})
 
-		var body struct {
-			Data map[string]string `json:"data"`
-		}
-
+		var body map[string]string
 		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 			t.Fatalf("failed to unmarshal body: %v", err)
 		}
-		if body.Data["hello"] != "world" {
-			t.Errorf("got data %v, want hello:world", body.Data)
+		if body["hello"] != "world" {
+			t.Errorf("got %q, want %q", body["hello"], "world")
+		}
+		if _, exists := body["data"]; exists {
+			t.Error("expected no envelope wrapper, but found 'data' key")
 		}
 	})
 
@@ -80,6 +80,12 @@ func TestWithError(t *testing.T) {
 			wantStatus: http.StatusInternalServerError,
 			wantMsg:    "internal server error",
 		},
+		{
+			name:       "unprocessable entity",
+			re:         respond.ErrUnprocessableEntity,
+			wantStatus: http.StatusUnprocessableEntity,
+			wantMsg:    "unprocessable entity",
+		},
 	}
 
 	for _, tt := range tests {
@@ -101,16 +107,55 @@ func TestWithError(t *testing.T) {
 	}
 }
 
-func TestWithDetails(t *testing.T) {
-	t.Run("includes details in response", func(t *testing.T) {
+func TestWithErrorMessage(t *testing.T) {
+	t.Run("overrides the default error message", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		respond.WithError(w, newRequest(t), respond.ErrNotFound.WithDetails("meter reading 123 does not exist"))
+		message := "meter reading 123 does not exist"
+		respond.WithError(w, newRequest(t), respond.ErrNotFound.WithErrorMessage(message))
+
 		var body map[string]any
 		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 			t.Fatalf("failed to unmarshal body: %v", err)
 		}
-		if body["details"] != "meter reading 123 does not exist" {
-			t.Errorf("got details %q, want %q", body["details"], "meter reading 123 does not exist")
+		if body["error"] != message {
+			t.Errorf("got error %q, want %q", body["error"], message)
+		}
+	})
+
+	t.Run("does not mutate the sentinel", func(t *testing.T) {
+		respond.ErrNotFound.WithErrorMessage("something else")
+
+		w := httptest.NewRecorder()
+		respond.WithError(w, newRequest(t), respond.ErrNotFound)
+
+		var body map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("failed to unmarshal body: %v", err)
+		}
+		if body["error"] != "not found" {
+			t.Errorf("sentinel was mutated: got error %q, want %q", body["error"], "not found")
+		}
+	})
+}
+
+func TestWithDetails(t *testing.T) {
+	t.Run("includes details map in response", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		details := map[string]string{"name": "is required", "email": "is required"}
+		respond.WithError(w, newRequest(t), respond.ErrUnprocessableEntity.WithDetails(details))
+
+		var body struct {
+			Error   string            `json:"error"`
+			Details map[string]string `json:"details"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("failed to unmarshal body: %v", err)
+		}
+		if body.Details["name"] != "is required" {
+			t.Errorf("got name detail %q, want %q", body.Details["name"], "is required")
+		}
+		if body.Details["email"] != "is required" {
+			t.Errorf("got email detail %q, want %q", body.Details["email"], "is required")
 		}
 	})
 
@@ -124,6 +169,21 @@ func TestWithDetails(t *testing.T) {
 		}
 		if _, exists := body["details"]; exists {
 			t.Error("expected details to be omitted when empty, but key was present")
+		}
+	})
+
+	t.Run("does not mutate the sentinel", func(t *testing.T) {
+		respond.ErrBadRequest.WithDetails(map[string]string{"field": "problem"})
+
+		w := httptest.NewRecorder()
+		respond.WithError(w, newRequest(t), respond.ErrBadRequest)
+
+		var body map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("failed to unmarshal body: %v", err)
+		}
+		if _, exists := body["details"]; exists {
+			t.Error("sentinel was mutated: details should be omitted")
 		}
 	})
 }
@@ -145,7 +205,7 @@ func TestWith(t *testing.T) {
 		}
 
 		if w.Code != http.StatusTeapot {
-			t.Errorf("got status %d, want %d", w.Code, http.StatusAccepted)
+			t.Errorf("got status %d, want %d", w.Code, http.StatusTeapot)
 		}
 
 		ct := w.Header().Get("Content-Type")

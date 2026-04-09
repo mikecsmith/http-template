@@ -27,14 +27,21 @@ import (
 // Message is a stable, client-safe description of the error category.
 // Details is an optional field for request-specific context.
 type ResponseError struct {
-	Code    int    `json:"-"`
-	Message string `json:"error"`
-	Details string `json:"details,omitempty"`
+	Code         int               `json:"-"`
+	ErrorMessage string            `json:"error"`
+	Details      map[string]string `json:"details,omitempty"`
+}
+
+// WithMessage allows overwriting the default message on copies of sentinel errors
+func (re ResponseError) WithErrorMessage(message string) ResponseError {
+	re.ErrorMessage = message
+	return re
 }
 
 // WithDetails returns a copy of the error with the Details field set.
 // The receiver is not mutated, so sentinel errors remain safe for reuse.
-func (re ResponseError) WithDetails(details string) ResponseError {
+// Details is typically the problems map returned by [request.Validator.Valid].
+func (re ResponseError) WithDetails(details map[string]string) ResponseError {
 	re.Details = details
 	return re
 }
@@ -77,7 +84,8 @@ func With(w http.ResponseWriter, r *http.Request, status int, data any) {
 // Sentinel errors for common HTTP failure responses.
 // Use [ResponseError.WithDetails] to add request-specific context.
 var (
-	ErrInternalServerError = ResponseError{Code: http.StatusInternalServerError, Message: "internal server error"}
-	ErrNotFound            = ResponseError{Code: http.StatusNotFound, Message: "not found"}
-	ErrBadRequest          = ResponseError{Code: http.StatusBadRequest, Message: "bad request"}
+	ErrInternalServerError = ResponseError{Code: http.StatusInternalServerError, ErrorMessage: "internal server error"}
+	ErrNotFound            = ResponseError{Code: http.StatusNotFound, ErrorMessage: "not found"}
+	ErrBadRequest          = ResponseError{Code: http.StatusBadRequest, ErrorMessage: "bad request"}
+	ErrUnprocessableEntity = ResponseError{Code: http.StatusUnprocessableEntity, ErrorMessage: "unprocessable entity"}
 )

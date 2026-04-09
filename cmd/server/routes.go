@@ -22,5 +22,7 @@ func addRoutes(mux *http.ServeMux, _ config) {
 	apiChain := append(globalChain, middleware.RequestContext)
 	mux.Handle("GET /healthz", handle.Healthz())
 	mux.Handle("GET /readyz", handle.Readyz())
+	mux.Handle("GET /hello", apiChain.then(handle.HelloWorldGet()))
+	mux.Handle("POST /hello", apiChain.then(handle.HelloWorldPost()))
 	mux.Handle("/", apiChain.then(handle.NotFound()))
 }
