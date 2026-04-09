@@ -55,7 +55,7 @@ func With(w http.ResponseWriter, r *http.Request, status int, data any) {
 	w.WriteHeader(status)
 
 	if _, err := w.Write(b); err != nil {
-		slog.ErrorContext(ctx, "Failed to write response", "error", err)
+		slog.WarnContext(ctx, "Failed to write response", "error", err)
 	}
 }
 
