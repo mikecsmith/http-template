@@ -1,4 +1,18 @@
-// Package respond
+// Package respond provides helpers for writing JSON HTTP responses.
+//
+// Success responses write the data directly as the JSON body — no envelope
+// wrapper. Error responses use a consistent [ResponseError] shape with an
+// "error" field and an optional "details" field for request-specific context.
+//
+// All responses are serialised with [json.Marshal] before any bytes are written
+// to the [http.ResponseWriter]. This means that if marshalling fails the status
+// code has not yet been sent, so the caller can still receive a clean 500 error
+// instead of a partial or malformed response.
+//
+// Sentinel errors ([ErrBadRequest], [ErrNotFound], [ErrInternalServerError])
+// cover the most common failure cases and can be extended with
+// [ResponseError.WithDetails] to add request-specific information without
+// mutating the original sentinel.
 package respond
 
 import (
@@ -9,28 +23,35 @@ import (
 )
 
 // ResponseError is the JSON shape written to the client on any error.
+// Code is used to set the HTTP status but is excluded from the JSON body.
+// Message is a stable, client-safe description of the error category.
+// Details is an optional field for request-specific context.
 type ResponseError struct {
 	Code    int    `json:"-"`
 	Message string `json:"error"`
 	Details string `json:"details,omitempty"`
 }
 
+// WithDetails returns a copy of the error with the Details field set.
+// The receiver is not mutated, so sentinel errors remain safe for reuse.
 func (re ResponseError) WithDetails(details string) ResponseError {
 	re.Details = details
 	return re
 }
 
-// WithOK writes a 200 OK response with the provided data encoded as JSON.
+// WithOK writes a 200 OK response with data serialised directly as the JSON body.
 func WithOK(w http.ResponseWriter, r *http.Request, data any) {
 	With(w, r, http.StatusOK, data)
 }
 
-// WithError accepts a ResponseError and passes it to With
+// WithError writes an error response using the status code from re.
 func WithError(w http.ResponseWriter, r *http.Request, re ResponseError) {
 	With(w, r, re.Code, re)
 }
 
-// With writes a response with the given status code and data as JSON.
+// With writes a JSON response with the given status code. Data is marshalled
+// before writing so that encoding errors can be caught and returned as a 500
+// without sending a partial response to the client.
 func With(w http.ResponseWriter, r *http.Request, status int, data any) {
 	ctx := r.Context()
 
@@ -53,6 +74,8 @@ func With(w http.ResponseWriter, r *http.Request, status int, data any) {
 	}
 }
 
+// Sentinel errors for common HTTP failure responses.
+// Use [ResponseError.WithDetails] to add request-specific context.
 var (
 	ErrInternalServerError = ResponseError{Code: http.StatusInternalServerError, Message: "internal server error"}
 	ErrNotFound            = ResponseError{Code: http.StatusNotFound, Message: "not found"}
