@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"strconv"
 )
 
 type config struct {
@@ -22,10 +21,6 @@ func parseConfig(args []string, getenv func(string) string) (config, error) {
 	}
 
 	if v := getenv("PORT"); v != "" {
-		_, err := strconv.Atoi(v)
-		if err != nil {
-			return config{}, fmt.Errorf("PORT is not an int: %w", err)
-		}
 		*port = v
 	}
 
