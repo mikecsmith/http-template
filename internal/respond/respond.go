@@ -20,15 +20,9 @@ func (re ResponseError) WithDetails(details string) ResponseError {
 	return re
 }
 
-// SuccessResponse is the standard envelope for successful responses with any status code.
-// Data holds the handler-specific payload.
-type SuccessResponse struct {
-	Data any `json:"data"`
-}
-
 // WithOK writes a 200 OK response with the provided data encoded as JSON.
 func WithOK(w http.ResponseWriter, r *http.Request, data any) {
-	With(w, r, http.StatusOK, SuccessResponse{Data: data})
+	With(w, r, http.StatusOK, data)
 }
 
 // WithError accepts a ResponseError and passes it to With
