@@ -36,13 +36,13 @@
 package logger
 
 import (
+	"io"
 	"log/slog"
-	"os"
 )
 
 // Init configures the global slog logger with a JSON handler writing to stdout and returns a default logger
-func Init() {
-	inner := slog.NewJSONHandler(os.Stdout, nil)
+func Init(w io.Writer) {
+	inner := slog.NewJSONHandler(w, nil)
 	h := NewContextHandler(inner)
 	slog.SetDefault(slog.New(h))
 }

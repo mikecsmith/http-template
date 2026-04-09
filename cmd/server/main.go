@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,16 +16,17 @@ import (
 
 func main() {
 	ctx := context.Background()
-	logger.Init()
-	if err := run(ctx); err != nil {
+	if err := run(ctx, os.Stdout); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context) error {
+func run(ctx context.Context, w io.Writer) error {
 	portPtr := flag.Int("port", 8080, "The port used by the HTTP server")
 	flag.Parse()
+
+	logger.Init(w)
 
 	addr := fmt.Sprintf(":%d", *portPtr)
 
