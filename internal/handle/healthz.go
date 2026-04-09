@@ -7,12 +7,9 @@ import (
 	"github.com/mikecsmith/httplab/internal/respond"
 )
 
-// Hello returns a simple hello world response.
-func Hello() http.HandlerFunc {
+// Healthz returns a 200 OK response to show the API is healthy.
+func Healthz() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		data := map[string]string{
-			"message": "Hello World!",
-		}
-		respond.WithOK(w, r, data)
+		respond.WithOK(w, r, nil)
 	}
 }
