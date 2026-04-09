@@ -16,19 +16,22 @@ import (
 
 func main() {
 	ctx := context.Background()
-	if err := run(ctx, os.Stdout); err != nil {
+	if err := run(ctx, os.Args, os.Stdout); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, w io.Writer) error {
-	portPtr := flag.Int("port", 8080, "The port used by the HTTP server")
-	flag.Parse()
+func run(ctx context.Context, args []string, out io.Writer) error {
+	logger.Init(out)
 
-	logger.Init(w)
+	flags := flag.NewFlagSet("server", flag.ContinueOnError)
+	port := flags.Int("port", 8080, "The port used by the HTTP server")
+	if err := flags.Parse(args[1:]); err != nil {
+		return fmt.Errorf("flag parsing: %w", err)
+	}
 
-	addr := fmt.Sprintf(":%d", *portPtr)
+	addr := fmt.Sprintf(":%d", *port)
 
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
