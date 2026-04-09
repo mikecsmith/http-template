@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,45 +16,42 @@ import (
 
 func main() {
 	ctx := context.Background()
-	if err := run(ctx, os.Args, os.Stdout); err != nil {
+	if err := run(ctx, os.Args, os.Getenv, os.Stdout, os.Interrupt); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, args []string, out io.Writer) error {
+func run(ctx context.Context, args []string, getenv func(string) string, out io.Writer, sig os.Signal) error {
 	logger.Init(out)
 
-	flags := flag.NewFlagSet("server", flag.ContinueOnError)
-	port := flags.Int("port", 8080, "The port used by the HTTP server")
-	if err := flags.Parse(args[1:]); err != nil {
-		return fmt.Errorf("flag parsing: %w", err)
+	cfg, err := parseConfig(args, getenv)
+	if err != nil {
+		return err
 	}
 
-	addr := fmt.Sprintf(":%d", *port)
-
-	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
+	ctx, cancel := signal.NotifyContext(ctx, sig)
 	defer cancel()
 
 	mux := http.NewServeMux()
-	addRoutes(mux)
+	addRoutes(mux, cfg)
 
-	srvErr := make(chan error, 1)
-	srv := &http.Server{
-		Addr:         addr,
+	httpServer := &http.Server{
+		Addr:         net.JoinHostPort(cfg.Host, cfg.Port),
 		Handler:      mux,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 
+	httpServerErr := make(chan error, 1)
 	go func() {
-		slog.InfoContext(ctx, "Starting server", "addr", srv.Addr)
-		srvErr <- srv.ListenAndServe()
+		slog.InfoContext(ctx, "Starting server", "addr", httpServer.Addr)
+		httpServerErr <- httpServer.ListenAndServe()
 	}()
 
 	select {
-	case err := <-srvErr:
+	case err := <-httpServerErr:
 		return err
 	case <-ctx.Done():
 		slog.InfoContext(ctx, "Server shutting down")
@@ -63,5 +60,5 @@ func run(ctx context.Context, args []string, out io.Writer) error {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 
-	return srv.Shutdown(shutdownCtx)
+	return httpServer.Shutdown(shutdownCtx)
 }

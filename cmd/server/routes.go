@@ -17,8 +17,10 @@ func (c middlewareChain) then(h http.Handler) http.Handler {
 	return h
 }
 
-func addRoutes(mux *http.ServeMux) {
-	baseChain := middlewareChain{middleware.RequestContext}
-	mux.Handle("GET /healthz", baseChain.then(handle.Healthz()))
-	mux.Handle("GET /readyz", baseChain.then(handle.Healthz()))
+func addRoutes(mux *http.ServeMux, _ config) {
+	globalChain := middlewareChain{}
+	apiChain := append(globalChain, middleware.RequestContext)
+	mux.Handle("GET /healthz", handle.Healthz())
+	mux.Handle("GET /readyz", handle.Readyz())
+	mux.Handle("/", apiChain.then(handle.NotFound()))
 }
