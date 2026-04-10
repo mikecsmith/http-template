@@ -25,14 +25,20 @@ func (c middlewareChain) then(h http.Handler) http.Handler {
 }
 
 // addRoutes is the single place where the full API surface is defined.
-// Health probes are registered without middleware so Kubernetes probes
-// stay lightweight. API routes use the apiChain for request context
-// enrichment (request ID, structured logging attributes).
+// Two middleware chains are used:
+//
+//   - globalChain applies to every route, including health probes. It
+//     carries baseline concerns that every response should have —
+//     currently just SecureHeaders.
+//   - apiChain extends globalChain with request-context enrichment
+//     (request ID, structured logging attrs). Health probes skip this
+//     extra layer so K8s probe traffic stays lightweight.
 func addRoutes(mux *http.ServeMux, _ config.Config) {
-	globalChain := middlewareChain{}
+	globalChain := middlewareChain{middleware.SecureHeaders}
 	apiChain := append(globalChain, middleware.RequestContext)
-	mux.Handle("GET /healthz", handle.Healthz())
-	mux.Handle("GET /readyz", handle.Readyz())
+
+	mux.Handle("GET /healthz", globalChain.then(handle.Healthz()))
+	mux.Handle("GET /readyz", globalChain.then(handle.Readyz()))
 	mux.Handle("GET /hello", apiChain.then(handle.HelloWorldGet()))
 	mux.Handle("POST /hello", apiChain.then(handle.HelloWorldPost()))
 	mux.Handle("/", apiChain.then(handle.NotFound()))

@@ -32,12 +32,14 @@ func TestRun_E2E(t *testing.T) {
 		checks []check
 	}{
 		{
-			name:   "GET /healthz returns 200 without request id",
+			name:   "GET /healthz returns 200 without request id but with security headers",
 			method: http.MethodGet,
 			path:   "/healthz",
 			checks: []check{
 				hasStatus(http.StatusOK),
 				headerAbsent("X-Request-ID"),
+				headerEquals("X-Content-Type-Options", "nosniff"),
+				headerEquals("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"),
 			},
 		},
 		{
@@ -199,6 +201,15 @@ func headerAbsent(name string) check {
 		t.Helper()
 		if got := resp.Header.Get(name); got != "" {
 			t.Errorf("%s = %q, want empty", name, got)
+		}
+	}
+}
+
+func headerEquals(name, want string) check {
+	return func(t *testing.T, resp *http.Response, _ []byte) {
+		t.Helper()
+		if got := resp.Header.Get(name); got != want {
+			t.Errorf("%s = %q, want %q", name, got, want)
 		}
 	}
 }
