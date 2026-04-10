@@ -1,16 +1,27 @@
 # Workload + Gateway wiring for local dev.
 #
-# This file is rendered by the Tiltfile: occurrences of __BASE_DOMAIN__
-# are replaced with the BASE_DOMAIN starlark variable (default
-# `cluster.localhost`) before being passed to k8s_yaml. Keep that
-# placeholder string exact — no quoting, no templating syntax beyond it.
+# This file is rendered by the Tiltfile: occurrences of ${BASE_DOMAIN}
+# and ${APP_NAME} are replaced before being passed to k8s_yaml.
+#   ${BASE_DOMAIN}  → BASE_DOMAIN  (default `cluster.localhost`)
+#   ${APP_NAME}     → APP_NAME     (basename of the go.mod module path)
+# Keep both placeholder strings exact — no quoting, no templating syntax
+# beyond them. The YAML stays valid as-is so editor/lint tooling works
+# without an extra render step.
 #
 # Routing topology (all via Traefik on the kind node, exposed to host
 # :80 and :443 by ctlptl/kind extraPortMappings):
 #
-#   http://*.cluster.localhost  → 301 to https (single wildcard route)
-#   https://cluster.localhost   → http-template Service :8080
-#   https://traefik.cluster.localhost → traefik dashboard
+#   http://*.cluster.localhost              → 301 to https (wildcard)
+#   https://apis.cluster.localhost/<app>/*  → <app> Service :8080
+#                                             (URLRewrite strips the
+#                                              /<app> prefix before
+#                                              forwarding to the pod)
+#   https://traefik.cluster.localhost       → traefik dashboard
+#
+# The `api.` host is the shared multi-API entry point — every service
+# in this cluster mounts under it at /<service-name>/*. Adding a new
+# service is one HTTPRoute with a fresh prefix; no extra hostnames or
+# wildcard cert reissuance needed.
 #
 # The container runs as the distroless `nonroot` UID 65532 to match
 # the production image's security posture. We deliberately do NOT set
@@ -23,18 +34,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: http-template
+  name: ${APP_NAME}
   labels:
-    app: http-template
+    app: ${APP_NAME}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: http-template
+      app: ${APP_NAME}
   template:
     metadata:
       labels:
-        app: http-template
+        app: ${APP_NAME}
     spec:
       securityContext:
         runAsNonRoot: true
@@ -44,7 +55,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: server
-          image: http-template
+          image: ${APP_NAME}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -71,10 +82,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: http-template
+  name: ${APP_NAME}
 spec:
   selector:
-    app: http-template
+    app: ${APP_NAME}
   ports:
     - name: http
       port: 8080
@@ -127,20 +138,31 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: http-template
+  name: ${APP_NAME}
 spec:
   parentRefs:
     - name: gateway
       sectionName: https
   hostnames:
-    - "__BASE_DOMAIN__"
+    - "api.${BASE_DOMAIN}"
+  # Multi-API gateway pattern: every backend is mounted under
+  # /<app-name>/* on the shared `api.` host. The URLRewrite filter
+  # strips the prefix before forwarding so the Go service keeps a flat
+  # route table (`/hello`, not `/${APP_NAME}/hello`) — the mount point
+  # is purely a gateway concern and the app stays unaware of it.
   rules:
     - matches:
         - path:
             type: PathPrefix
-            value: /
+            value: /${APP_NAME}
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
       backendRefs:
-        - name: http-template
+        - name: ${APP_NAME}
           port: 8080
 ---
 # yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1.json
@@ -153,7 +175,7 @@ spec:
     - name: gateway
       sectionName: https
   hostnames:
-    - "traefik.__BASE_DOMAIN__"
+    - "traefik.${BASE_DOMAIN}"
   rules:
     - matches:
         - path:

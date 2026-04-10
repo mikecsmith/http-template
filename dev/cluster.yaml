@@ -8,6 +8,7 @@
 #
 # Substituted variables:
 #   ${MKCERT_CAROOT} — `mkcert -CAROOT`, the local CA store
+#   ${APP_NAME}     — basename of the go.mod module path
 #
 # Tilt's default_registry() in the Tiltfile points at localhost:5005,
 # which kind pulls from via the registry wired in below. This keeps
@@ -31,7 +32,7 @@ port: 5005
 apiVersion: ctlptl.dev/v1alpha1
 kind: Cluster
 product: kind
-name: kind-http-template
+name: kind-${APP_NAME}
 registry: ctlptl-registry
 kindV1Alpha4Cluster:
   kind: Cluster

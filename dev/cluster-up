@@ -18,6 +18,15 @@ BASE_DOMAIN="${BASE_DOMAIN:-cluster.localhost}"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_DIR"
 
+# Derive the app name from the Go module path so the cluster name in
+# the rendered ctlptl config tracks `gonew`-derived projects without
+# manual edits. Matches the same logic in Tiltfile.
+APP_NAME="$(awk '/^module / {n = split($2, a, "/"); print a[n]; exit}' go.mod)"
+if [ -z "$APP_NAME" ]; then
+  echo "cluster-up: could not parse module path from go.mod" >&2
+  exit 1
+fi
+
 # Ensure the local mkcert CA exists and is trusted by the host.
 mkcert -install >/dev/null
 MKCERT_CAROOT="$(mkcert -CAROOT)"
@@ -36,6 +45,9 @@ fi
 # the ctlptl config with absolute paths before applying. The rendered
 # file lands under dist/ which is gitignored.
 mkdir -p dist/dev
-sed "s|\${MKCERT_CAROOT}|$MKCERT_CAROOT|g" dev/cluster.yaml > dist/dev/cluster.yaml
+sed \
+  -e "s|\${MKCERT_CAROOT}|$MKCERT_CAROOT|g" \
+  -e "s|\${APP_NAME}|$APP_NAME|g" \
+  dev/cluster.yaml > dist/dev/cluster.yaml
 
 ctlptl apply -f dist/dev/cluster.yaml

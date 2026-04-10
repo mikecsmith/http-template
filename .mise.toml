@@ -27,7 +27,17 @@ run = "./dev/cluster-up"
 
 [tasks.cluster-down]
 description = "Tear down the local kind cluster + registry"
-run = "ctlptl delete -f dist/dev/cluster.yaml 2>/dev/null || ctlptl delete cluster kind-http-template"
+# Prefer the rendered ctlptl file (drops the registry too); fall back to
+# deleting the cluster by derived name if the rendered file is gone.
+run = """
+set -euo pipefail
+if [ -f dist/dev/cluster.yaml ]; then
+  ctlptl delete -f dist/dev/cluster.yaml
+else
+  app_name="$(awk '/^module / {n = split($2, a, "/"); print a[n]; exit}' go.mod)"
+  ctlptl delete cluster "kind-$app_name"
+fi
+"""
 
 [tasks.snapshot]
 description = "Build a multi-arch snapshot release locally (no push)"

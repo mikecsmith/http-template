@@ -17,9 +17,15 @@
 # Routing topology (kind extraPortMappings publish node 30080/30443
 # out to host 80/443):
 #
-#   http://*.cluster.localhost            → 301 to https
-#   https://cluster.localhost             → http-template
-#   https://traefik.cluster.localhost     → Traefik dashboard
+#   http://*.cluster.localhost                  → 301 to https
+#   https://apis.cluster.localhost/<app>/*      → <app> backend
+#                                                 (gateway strips
+#                                                  /<app> prefix)
+#   https://traefik.cluster.localhost           → Traefik dashboard
+#
+# Multi-API gateway pattern: every service mounts under apis.<domain>
+# at its own /<name>/* prefix. The Go service stays unaware — it sees
+# requests at flat paths like /hello.
 #
 # Cluster bootstrap (mkcert install, wildcard cert generation, kind
 # extraMount of the mkcert root CA into /etc/ssl/certs/, Gateway API
@@ -36,8 +42,22 @@ config.define_string('base-domain')
 cfg = config.parse()
 BASE_DOMAIN = cfg.get('base-domain', 'cluster.localhost')
 
+# Derive the app name from the Go module path so this template stays
+# portable: `gonew github.com/foo/bar` makes APP_NAME=bar with no edits
+# to any of the files below. CLUSTER_NAME follows ctlptl's `kind-<name>`
+# convention so it matches dev/cluster.yaml.
+def _module_basename():
+    for line in str(read_file('go.mod')).splitlines():
+        line = line.strip()
+        if line.startswith('module '):
+            return line[len('module '):].strip().split('/')[-1]
+    fail('Tiltfile: could not parse module path from go.mod')
+
+APP_NAME = _module_basename()
+CLUSTER_NAME = 'kind-' + APP_NAME
+
 # Guard: only ever run against our local kind cluster.
-allow_k8s_contexts('kind-http-template')
+allow_k8s_contexts(CLUSTER_NAME)
 
 default_registry('localhost:5005')
 
@@ -100,7 +120,7 @@ load('ext://restart_process', 'docker_build_with_restart')
 # re-execs `/server` against the synced binary, replacing the
 # deprecated `restart_container()` step.
 docker_build_with_restart(
-    'http-template',
+    APP_NAME,
     context='dist/dev',
     entrypoint='/server',
     dockerfile_contents='''
@@ -121,10 +141,16 @@ ENTRYPOINT ["/server"]
 # Traefik install — static, no templating needed.
 k8s_yaml('dev/traefik.yaml')
 
-# Workload + Gateway + HTTPRoutes — render BASE_DOMAIN into the file.
-k8s_yaml(blob(
-    str(read_file('dev/k8s.yaml')).replace('__BASE_DOMAIN__', BASE_DOMAIN),
-))
+# Workload + Gateway + HTTPRoutes — render ${BASE_DOMAIN} and ${APP_NAME}
+# into the file. Pure in-memory string substitution: read_file() returns
+# the contents and blob() hands the rendered string straight to k8s_yaml,
+# so dev/k8s.yaml on disk is never touched and stays valid YAML for
+# editor/lint tooling. Same envsubst-style ${VAR} convention as
+# dev/cluster.yaml.
+manifest = str(read_file('dev/k8s.yaml'))
+manifest = manifest.replace('${BASE_DOMAIN}', BASE_DOMAIN)
+manifest = manifest.replace('${APP_NAME}', APP_NAME)
+k8s_yaml(blob(manifest))
 
 # ---------------------------------------------------------------------
 # Resource wiring
@@ -156,12 +182,12 @@ k8s_resource(
 )
 
 k8s_resource(
-    'http-template',
-    objects=['http-template:httproute'],
+    APP_NAME,
+    objects=[APP_NAME + ':httproute'],
     resource_deps=['go-build', 'traefik'],
     labels=['app'],
     links=[
-        link('https://{}'.format(BASE_DOMAIN), 'app'),
+        link('https://apis.{}/{}/hello'.format(BASE_DOMAIN, APP_NAME), 'hello'),
         link('https://traefik.{}'.format(BASE_DOMAIN), 'traefik dashboard'),
     ],
 )
