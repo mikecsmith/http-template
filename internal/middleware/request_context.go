@@ -1,4 +1,3 @@
-// Package middleware provides HTTP middleware for the server.
 package middleware
 
 import (
@@ -10,6 +9,9 @@ import (
 	"github.com/mikecsmith/httplab/internal/logger"
 )
 
+// RequestContext middleware constants. The header name follows the
+// widely-used X-Request-ID convention; the attr names are the keys
+// under which method, path, and request ID appear in structured logs.
 const (
 	RequestIDHeader = "X-Request-ID"
 	AttrMethod      = "method"
@@ -36,17 +38,24 @@ func RequestContext(next http.Handler) http.Handler {
 	})
 }
 
+// idFromRequest returns the request ID carried on the incoming request,
+// or generates a new one if none is present. Propagating an upstream ID
+// preserves correlation across services (load balancers, API gateways).
+func idFromRequest(r *http.Request) string {
+	if h := r.Header.Get(RequestIDHeader); h != "" {
+		return h
+	}
+	return generateRequestID()
+}
+
+// generateRequestID returns a 32-character hex-encoded random ID. The
+// caller's assumption is that crypto/rand always succeeds; if it
+// doesn't, something is very wrong with the host and panicking is the
+// correct response.
 func generateRequestID() string {
 	s := make([]byte, 16)
 	if _, err := rand.Read(s); err != nil {
 		panic("System unable to provide random numbers")
 	}
 	return hex.EncodeToString(s)
-}
-
-func idFromRequest(r *http.Request) string {
-	if h := r.Header.Get(RequestIDHeader); h != "" {
-		return h
-	}
-	return generateRequestID()
 }

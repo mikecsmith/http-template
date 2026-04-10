@@ -10,6 +10,8 @@ import (
 	"github.com/mikecsmith/httplab/internal/middleware"
 )
 
+// Aliases to the package constants so each subtest can read cleanly
+// without the `middleware.` prefix on every reference.
 const (
 	headerRequestID = middleware.RequestIDHeader
 	attrMethod      = middleware.AttrMethod
