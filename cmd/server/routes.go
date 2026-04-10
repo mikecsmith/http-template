@@ -25,21 +25,34 @@ func (c middlewareChain) then(h http.Handler) http.Handler {
 }
 
 // addRoutes is the single place where the full API surface is defined.
-// Two middleware chains are used:
+// A single middleware chain applies to every route, including health
+// probes. Ordering matters:
 //
-//   - globalChain applies to every route, including health probes. It
-//     carries baseline concerns that every response should have —
-//     currently just SecureHeaders.
-//   - apiChain extends globalChain with request-context enrichment
-//     (request ID, structured logging attrs). Health probes skip this
-//     extra layer so K8s probe traffic stays lightweight.
+//  1. RequestContext — outermost. Generates/propagates the request ID
+//     and seeds the logger context attrs. Must run first so downstream
+//     middleware (Logging) can read the attrs it injects.
+//  2. Logging — second. Sees every request, including ones a later
+//     middleware short-circuits (future auth, rate limit, etc.). With
+//     LogLevel defaulting to Error, successful probe traffic is
+//     constructed cheaply and dropped at the slog handler via the
+//     Enabled guard inside the middleware, so the cost on /healthz
+//     and /readyz is a few hundred nanoseconds per hit.
+//  3. SecureHeaders — innermost. Sets the response header baseline
+//     before the handler runs.
+//
+// Per-request metrics are produced by otelhttp, which wraps this whole
+// chain in NewServer — outside the chain, so metrics see every request
+// regardless of what the chain does.
 func addRoutes(mux *http.ServeMux, _ config.Config) {
-	globalChain := middlewareChain{middleware.SecureHeaders}
-	apiChain := append(globalChain, middleware.RequestContext)
+	chain := middlewareChain{
+		middleware.RequestContext,
+		middleware.Logging,
+		middleware.SecureHeaders,
+	}
 
-	mux.Handle("GET /healthz", globalChain.then(handle.Healthz()))
-	mux.Handle("GET /readyz", globalChain.then(handle.Readyz()))
-	mux.Handle("GET /hello", apiChain.then(handle.HelloWorldGet()))
-	mux.Handle("POST /hello", apiChain.then(handle.HelloWorldPost()))
-	mux.Handle("/", apiChain.then(handle.NotFound()))
+	mux.Handle("GET /healthz", chain.then(handle.Healthz()))
+	mux.Handle("GET /readyz", chain.then(handle.Readyz()))
+	mux.Handle("GET /hello", chain.then(handle.HelloWorldGet()))
+	mux.Handle("POST /hello", chain.then(handle.HelloWorldPost()))
+	mux.Handle("/", chain.then(handle.NotFound()))
 }
