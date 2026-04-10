@@ -94,18 +94,24 @@ func TestLogging(t *testing.T) {
 		}
 	})
 
-	// Level adapts to status: 4xx is Warn, 5xx is Error. Covers the
-	// branching in levelForStatus via the public middleware surface.
-	t.Run("level adapts to status", func(t *testing.T) {
+	// Level adapts to path + status: 4xx is Warn, 5xx is Error, and
+	// successful kubelet probe hits get demoted to Debug so they don't
+	// drown out real traffic in dev. A failing probe still escalates
+	// through the status branches.
+	t.Run("level adapts to path and status", func(t *testing.T) {
 		cases := []struct {
 			name   string
+			path   string
 			status int
 			level  string
 		}{
-			{"2xx is info", http.StatusOK, "INFO"},
-			{"3xx is info", http.StatusFound, "INFO"},
-			{"4xx is warn", http.StatusNotFound, "WARN"},
-			{"5xx is error", http.StatusInternalServerError, "ERROR"},
+			{"2xx is info", "/", http.StatusOK, "INFO"},
+			{"3xx is info", "/", http.StatusFound, "INFO"},
+			{"4xx is warn", "/", http.StatusNotFound, "WARN"},
+			{"5xx is error", "/", http.StatusInternalServerError, "ERROR"},
+			{"healthz 200 is debug", "/healthz", http.StatusOK, "DEBUG"},
+			{"readyz 200 is debug", "/readyz", http.StatusOK, "DEBUG"},
+			{"healthz 500 still errors", "/healthz", http.StatusInternalServerError, "ERROR"},
 		}
 
 		for _, tc := range cases {
@@ -115,7 +121,7 @@ func TestLogging(t *testing.T) {
 				h := middleware.Logging(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(tc.status)
 				}))
-				h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+				h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, tc.path, nil))
 
 				rec := decodeRecord(t, buf)
 				if got := rec[attrStatus]; got != float64(tc.status) {

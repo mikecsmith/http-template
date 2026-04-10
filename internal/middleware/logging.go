@@ -49,7 +49,7 @@ func Logging(next http.Handler) http.Handler {
 		// three attrs; it earns its keep as soon as the middleware
 		// grows richer fields (remote_addr, user_agent, trace IDs).
 		status := rec.Status()
-		level := levelForStatus(status)
+		level := levelForRequest(r.URL.Path, status)
 		ctx := r.Context()
 		if !slog.Default().Enabled(ctx, level) {
 			return
@@ -62,18 +62,31 @@ func Logging(next http.Handler) http.Handler {
 	})
 }
 
-// levelForStatus maps an HTTP status code to a slog level. 5xx is
-// something the operator almost certainly wants to see; 4xx is worth
-// noting but usually client error; everything else is routine.
-func levelForStatus(status int) slog.Level {
+// levelForRequest maps a request path + response status to a slog
+// level. 5xx is something the operator almost certainly wants to see;
+// 4xx is worth noting but usually client error; everything else is
+// routine. Successful hits to kubelet probe endpoints are demoted to
+// Debug — on a live cluster these fire every couple of seconds and
+// would otherwise drown out real traffic. A failing probe still
+// surfaces at Warn/Error via the status-based branches.
+func levelForRequest(path string, status int) slog.Level {
 	switch {
 	case status >= 500:
 		return slog.LevelError
 	case status >= 400:
 		return slog.LevelWarn
+	case isProbePath(path):
+		return slog.LevelDebug
 	default:
 		return slog.LevelInfo
 	}
+}
+
+// isProbePath reports whether the request targets a kubelet probe
+// endpoint. Kept as a tiny helper so the set of probe paths lives in
+// one place.
+func isProbePath(path string) bool {
+	return path == "/healthz" || path == "/readyz"
 }
 
 // responseRecorder wraps http.ResponseWriter to capture the status code
