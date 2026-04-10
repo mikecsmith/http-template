@@ -25,45 +25,22 @@ archives:
       {{- if eq .Arch "amd64" }}x86_64
       {{- else }}{{ .Arch }}{{ end }}
 
-dockers:
-  - image_templates:
+dockers_v2:
+  - images:
       # TODO(gonew): update image path
-      - "ghcr.io/mikecsmith/http-template:{{ .Version }}-amd64"
-    dockerfile: Dockerfile
-    use: buildx
-    goarch: amd64
-    build_flag_templates:
-      - "--platform=linux/amd64"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.source={{.GitURL}}"
-      - "--label=org.opencontainers.image.licenses=MIT"
-  - image_templates:
-      # TODO(gonew): update image path
-      - "ghcr.io/mikecsmith/http-template:{{ .Version }}-arm64"
-    dockerfile: Dockerfile
-    use: buildx
-    goarch: arm64
-    build_flag_templates:
-      - "--platform=linux/arm64"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.source={{.GitURL}}"
-      - "--label=org.opencontainers.image.licenses=MIT"
-
-docker_manifests:
-  # TODO(gonew): update image path
-  - name_template: "ghcr.io/mikecsmith/http-template:{{ .Version }}"
-    image_templates:
-      - "ghcr.io/mikecsmith/http-template:{{ .Version }}-amd64"
-      - "ghcr.io/mikecsmith/http-template:{{ .Version }}-arm64"
-  # TODO(gonew): update image path
-  - name_template: "ghcr.io/mikecsmith/http-template:latest"
-    image_templates:
-      - "ghcr.io/mikecsmith/http-template:{{ .Version }}-amd64"
-      - "ghcr.io/mikecsmith/http-template:{{ .Version }}-arm64"
+      - "ghcr.io/mikecsmith/http-template"
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .IsSnapshot }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      "org.opencontainers.image.created": "{{ .Date }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.source": "{{ .GitURL }}"
+      "org.opencontainers.image.licenses": "MIT"
 
 checksum:
   name_template: "checksums.txt"
