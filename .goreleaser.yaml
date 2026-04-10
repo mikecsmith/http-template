@@ -1,7 +1,16 @@
-# TODO(gonew): update project_name and all ghcr.io image paths below when
-# copying this template into a new project.
 version: 2
-project_name: http-template
+
+# project_name is intentionally omitted: goreleaser defaults it to the
+# git remote repo name, falling back to the working directory. That makes
+# this config portable across `gonew`-derived projects without edits.
+
+# IMAGE_OWNER drives the GHCR namespace below. In CI it comes from the
+# GitHub Actions context (GITHUB_REPOSITORY_OWNER, lowercased to satisfy
+# GHCR's repository-name rules). For local snapshot builds where that
+# var is unset, we fall back to `local` so `mise run snapshot` works
+# without any environment setup.
+env:
+  - IMAGE_OWNER={{ if index .Env "GITHUB_REPOSITORY_OWNER" }}{{ tolower .Env.GITHUB_REPOSITORY_OWNER }}{{ else }}local{{ end }}
 
 builds:
   - env:
@@ -27,8 +36,7 @@ archives:
 
 dockers_v2:
   - images:
-      # TODO(gonew): update image path
-      - "ghcr.io/mikecsmith/http-template"
+      - "ghcr.io/{{ .Env.IMAGE_OWNER }}/{{ .ProjectName }}"
     tags:
       - "{{ .Version }}"
       - "{{ if not .IsSnapshot }}latest{{ end }}"
