@@ -2,8 +2,6 @@
 
 My starting point for new Go HTTP services. Standard library first, no frameworks, opinionated about the small set of things every service needs on day one except auth so I don't rebuild them every time.
 
-If you're reading this and you're not me — feel free to use it. Nothing here is secret and nothing is supported.
-
 ## Use it as a template
 
 [`gonew`][gonew] copies the template into a new module and rewrites import paths in one shot:
