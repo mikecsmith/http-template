@@ -32,7 +32,7 @@ type ResponseError struct {
 	Details      map[string]string `json:"details,omitempty"`
 }
 
-// WithMessage allows overwriting the default message on copies of sentinel errors
+// WithErrorMessage allows overwriting the default message on copies of sentinel errors
 func (re ResponseError) WithErrorMessage(message string) ResponseError {
 	re.ErrorMessage = message
 	return re
