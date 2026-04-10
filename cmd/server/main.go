@@ -1,3 +1,9 @@
+// Package main is the entry point for the HTTP server.
+//
+// main is kept deliberately minimal — it calls [run] with the real OS
+// dependencies and translates any error into a non-zero exit code. All
+// startup logic lives in [run] so the entire program can be exercised
+// from tests by calling run directly with controlled inputs.
 package main
 
 import (
@@ -22,6 +28,10 @@ func main() {
 	}
 }
 
+// run is the real entry point. It takes OS fundamentals as arguments so
+// that tests can call it with controlled values — fake args, env vars,
+// and output writers — without mutating global state. The sig parameter
+// controls which OS signal triggers graceful shutdown.
 func run(ctx context.Context, args []string, getenv func(string) string, out io.Writer, sig os.Signal) error {
 	logger.Init(out)
 
