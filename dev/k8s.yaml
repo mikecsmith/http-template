@@ -12,11 +12,14 @@
 #   https://cluster.localhost   → http-template Service :8080
 #   https://traefik.cluster.localhost → traefik dashboard
 #
-# The container runs as the distroless `nonroot` UID 65532 with a
-# read-only root filesystem — matches the production image's security
-# posture so we catch permission issues during dev rather than at
-# deploy time.
+# The container runs as the distroless `nonroot` UID 65532 to match
+# the production image's security posture. We deliberately do NOT set
+# readOnlyRootFilesystem here — Tilt's live_update needs to overwrite
+# /server on sync and touch /tmp/.restart-proc to signal the
+# tilt-restart-wrapper, and both live on the container rootfs. Prod
+# hardening still comes from the goreleaser-built distroless image.
 ---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/deployment-apps-v1.json
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -51,7 +54,6 @@ spec:
               value: info
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           readinessProbe:
@@ -65,6 +67,7 @@ spec:
               port: http
             periodSeconds: 10
 ---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/service-v1.json
 apiVersion: v1
 kind: Service
 metadata:
@@ -77,6 +80,7 @@ spec:
       port: 8080
       targetPort: http
 ---
+# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/gateway_v1.json
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -103,6 +107,7 @@ spec:
 ---
 # Single wildcard redirect: anything on :80 → https. Hostnames omitted
 # so it matches every request that hits the http listener.
+# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1.json
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -118,6 +123,7 @@ spec:
             scheme: https
             statusCode: 301
 ---
+# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1.json
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -137,6 +143,7 @@ spec:
         - name: http-template
           port: 8080
 ---
+# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1.json
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

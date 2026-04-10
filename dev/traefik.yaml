@@ -15,12 +15,14 @@
 # that is fine here because it's only reachable in-cluster (ClusterIP)
 # and through the HTTPRoute we wire up in dev/k8s.yaml.
 ---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/serviceaccount.json
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: traefik
   namespace: default
 ---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/clusterrole.json
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -61,6 +63,7 @@ rules:
       - backendtlspolicies/status
     verbs: [update]
 ---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/clusterrolebinding.json
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -74,6 +77,7 @@ subjects:
     name: traefik
     namespace: default
 ---
+# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/gatewayclass_v1.json
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
@@ -81,6 +85,7 @@ metadata:
 spec:
   controllerName: traefik.io/gateway-controller
 ---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/deployment-apps-v1.json
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -130,6 +135,7 @@ spec:
               port: 8080
             periodSeconds: 10
 ---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/service-v1.json
 apiVersion: v1
 kind: Service
 metadata:
@@ -151,6 +157,7 @@ spec:
       nodePort: 30443
 ---
 # Dashboard reached only via the gateway, so a ClusterIP Service.
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/service-v1.json
 apiVersion: v1
 kind: Service
 metadata:
