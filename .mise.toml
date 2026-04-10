@@ -4,6 +4,9 @@ golangci-lint = "latest"
 lefthook = "latest"
 goreleaser = "latest"
 act = "latest"
+mkcert = "latest"
+tilt = "latest"
+ctlptl = "latest"
 
 [tasks.dev-build]
 description = "Compile a linux dev binary at dist/dev/server for Tilt live_update"
