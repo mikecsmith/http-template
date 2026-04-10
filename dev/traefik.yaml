@@ -106,6 +106,7 @@ spec:
             - --accesslog=true
             - --api.dashboard=true
             - --api.insecure=true
+            - --ping=true
             - --entryPoints.web.address=:80
             - --entryPoints.websecure.address=:443
             - --entryPoints.traefik.address=:8080
