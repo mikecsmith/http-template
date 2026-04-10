@@ -1,0 +1,165 @@
+# Minimal Traefik v3 install for local dev as a Gateway API controller.
+#
+# No Helm — we want one file Tilt can `k8s_yaml` and watch. The Gateway
+# API CRDs themselves are applied separately by the Tiltfile via
+# `local('kubectl apply -f https://...gateway-api...standard-install.yaml')`
+# because they live upstream and shouldn't be vendored here.
+#
+# Exposure model:
+#   - web (:80)        → NodePort 30080 → host :80   (via kind extraPortMappings)
+#   - websecure (:443) → NodePort 30443 → host :443  (via kind extraPortMappings)
+#   - dashboard (:8080) → ClusterIP only, reached through the gateway itself
+#     via traefik.<base-domain> on the websecure listener.
+#
+# `--api.insecure=true` exposes the dashboard on :8080 with no auth —
+# that is fine here because it's only reachable in-cluster (ClusterIP)
+# and through the HTTPRoute we wire up in dev/k8s.yaml.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: traefik
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: traefik-gateway
+rules:
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [list, watch]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [services, secrets, configmaps]
+    verbs: [get, list, watch]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [list, watch]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources:
+      - gatewayclasses
+      - gateways
+      - httproutes
+      - grpcroutes
+      - tcproutes
+      - tlsroutes
+      - referencegrants
+      - backendtlspolicies
+    verbs: [get, list, watch]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources:
+      - gatewayclasses/status
+      - gateways/status
+      - httproutes/status
+      - grpcroutes/status
+      - tcproutes/status
+      - tlsroutes/status
+      - referencegrants/status
+      - backendtlspolicies/status
+    verbs: [update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: traefik-gateway
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: traefik-gateway
+subjects:
+  - kind: ServiceAccount
+    name: traefik
+    namespace: default
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: traefik
+spec:
+  controllerName: traefik.io/gateway-controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traefik
+  labels:
+    app: traefik
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: traefik
+  template:
+    metadata:
+      labels:
+        app: traefik
+    spec:
+      serviceAccountName: traefik
+      containers:
+        - name: traefik
+          image: traefik:v3.2
+          args:
+            - --log.level=INFO
+            - --accesslog=true
+            - --api.dashboard=true
+            - --api.insecure=true
+            - --entryPoints.web.address=:80
+            - --entryPoints.websecure.address=:443
+            - --entryPoints.traefik.address=:8080
+            - --providers.kubernetesgateway=true
+          ports:
+            - name: web
+              containerPort: 80
+            - name: websecure
+              containerPort: 443
+            - name: dashboard
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 8080
+            periodSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: 8080
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik
+  labels:
+    app: traefik
+spec:
+  type: NodePort
+  selector:
+    app: traefik
+  ports:
+    - name: web
+      port: 80
+      targetPort: web
+      nodePort: 30080
+    - name: websecure
+      port: 443
+      targetPort: websecure
+      nodePort: 30443
+---
+# Dashboard reached only via the gateway, so a ClusterIP Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik-dashboard
+  labels:
+    app: traefik
+spec:
+  type: ClusterIP
+  selector:
+    app: traefik
+  ports:
+    - name: dashboard
+      port: 8080
+      targetPort: dashboard
