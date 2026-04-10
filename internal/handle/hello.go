@@ -36,11 +36,11 @@ func HelloWorldPost() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		req, problems, err := request.DecodeValid[helloWorldReq](r)
 		if err != nil {
-			respond.With(w, r, http.StatusUnprocessableEntity, problems)
+			respond.WithError(w, r, respond.ErrBadRequest)
 			return
 		}
 		if len(problems) > 0 {
-			respond.WithError(w, r, respond.ErrBadRequest.WithDetails(problems))
+			respond.WithError(w, r, respond.ErrUnprocessableEntity.WithDetails(problems))
 			return
 		}
 		respond.WithOK(w, r, helloWorldRes{Message: fmt.Sprintf("Hello %s!", req.Name)})
