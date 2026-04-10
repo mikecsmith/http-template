@@ -2,32 +2,55 @@ package config_test
 
 import (
 	"testing"
+	"time"
+
+	"github.com/mikecsmith/httplab/internal/config"
 )
 
 func TestParseConfig(t *testing.T) {
 	noEnv := func(string) string { return "" }
 
 	tests := []struct {
-		name     string
-		args     []string
-		getenv   func(string) string
-		wantHost string
-		wantPort string
-		wantErr  bool
+		name                string
+		args                []string
+		getenv              func(string) string
+		wantHost            string
+		wantPort            string
+		wantRequestTimeout  time.Duration
+		wantWriteTimeout    time.Duration
+		wantIdleTimeout     time.Duration
+		wantShutdownTimeout time.Duration
+		wantErr             bool
 	}{
 		{
-			name:     "defaults when no flags or env",
-			args:     []string{"server"},
-			getenv:   noEnv,
-			wantHost: "",
-			wantPort: "8080",
+			name:                "defaults when no flags or env",
+			args:                []string{"server"},
+			getenv:              noEnv,
+			wantHost:            config.DefaultHost,
+			wantPort:            config.DefaultPort,
+			wantRequestTimeout:  config.DefaultRequestTimeout,
+			wantWriteTimeout:    config.DefaultWriteTimeout,
+			wantIdleTimeout:     config.DefaultIdleTimeout,
+			wantShutdownTimeout: config.DefaultShutdownTimeout,
 		},
 		{
-			name:     "flags override defaults",
-			args:     []string{"server", "--port", "3000", "--host", "localhost"},
-			getenv:   noEnv,
-			wantHost: "localhost",
-			wantPort: "3000",
+			name: "flags override defaults",
+			args: []string{
+				"server",
+				"--port", "3000",
+				"--host", "localhost",
+				"--request-timeout", "1s",
+				"--write-timeout", "2s",
+				"--idle-timeout", "3s",
+				"--shutdown-timeout", "4s",
+			},
+			getenv:              noEnv,
+			wantHost:            "localhost",
+			wantPort:            "3000",
+			wantRequestTimeout:  1 * time.Second,
+			wantWriteTimeout:    2 * time.Second,
+			wantIdleTimeout:     3 * time.Second,
+			wantShutdownTimeout: 4 * time.Second,
 		},
 		{
 			name: "env vars override flag defaults",
@@ -38,12 +61,51 @@ func TestParseConfig(t *testing.T) {
 					return "9090"
 				case "HOST":
 					return "0.0.0.0"
+				case "REQUEST_TIMEOUT":
+					return "15s"
+				case "WRITE_TIMEOUT":
+					return "30s"
+				case "IDLE_TIMEOUT":
+					return "5m"
+				case "SHUTDOWN_TIMEOUT":
+					return "15s"
 				default:
 					return ""
 				}
 			},
-			wantHost: "0.0.0.0",
-			wantPort: "9090",
+			wantHost:            "0.0.0.0",
+			wantPort:            "9090",
+			wantRequestTimeout:  15 * time.Second,
+			wantWriteTimeout:    30 * time.Second,
+			wantIdleTimeout:     5 * time.Minute,
+			wantShutdownTimeout: 15 * time.Second,
+		},
+		{
+			name: "env vars override flag values",
+			args: []string{
+				"server",
+				"--request-timeout", "1s",
+				"--write-timeout", "2s",
+				"--idle-timeout", "3s",
+			},
+			getenv: func(key string) string {
+				switch key {
+				case "REQUEST_TIMEOUT":
+					return "7s"
+				case "WRITE_TIMEOUT":
+					return "8s"
+				case "IDLE_TIMEOUT":
+					return "9s"
+				default:
+					return ""
+				}
+			},
+			wantHost:            config.DefaultHost,
+			wantPort:            config.DefaultPort,
+			wantRequestTimeout:  7 * time.Second,
+			wantWriteTimeout:    8 * time.Second,
+			wantIdleTimeout:     9 * time.Second,
+			wantShutdownTimeout: config.DefaultShutdownTimeout,
 		},
 		{
 			name:    "invalid flag returns error",
@@ -51,11 +113,55 @@ func TestParseConfig(t *testing.T) {
 			getenv:  noEnv,
 			wantErr: true,
 		},
+		{
+			name: "invalid REQUEST_TIMEOUT env returns error",
+			args: []string{"server"},
+			getenv: func(key string) string {
+				if key == "REQUEST_TIMEOUT" {
+					return "not-a-duration"
+				}
+				return ""
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid WRITE_TIMEOUT env returns error",
+			args: []string{"server"},
+			getenv: func(key string) string {
+				if key == "WRITE_TIMEOUT" {
+					return "nope"
+				}
+				return ""
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid IDLE_TIMEOUT env returns error",
+			args: []string{"server"},
+			getenv: func(key string) string {
+				if key == "IDLE_TIMEOUT" {
+					return "bad"
+				}
+				return ""
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid SHUTDOWN_TIMEOUT env returns error",
+			args: []string{"server"},
+			getenv: func(key string) string {
+				if key == "SHUTDOWN_TIMEOUT" {
+					return "bad"
+				}
+				return ""
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := ParseConfig(tt.args, tt.getenv)
+			cfg, err := config.ParseConfig(tt.args, tt.getenv)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -70,6 +176,18 @@ func TestParseConfig(t *testing.T) {
 			}
 			if cfg.Port != tt.wantPort {
 				t.Errorf("got port %q, want %q", cfg.Port, tt.wantPort)
+			}
+			if cfg.RequestTimeout != tt.wantRequestTimeout {
+				t.Errorf("got request timeout %v, want %v", cfg.RequestTimeout, tt.wantRequestTimeout)
+			}
+			if cfg.WriteTimeout != tt.wantWriteTimeout {
+				t.Errorf("got write timeout %v, want %v", cfg.WriteTimeout, tt.wantWriteTimeout)
+			}
+			if cfg.IdleTimeout != tt.wantIdleTimeout {
+				t.Errorf("got idle timeout %v, want %v", cfg.IdleTimeout, tt.wantIdleTimeout)
+			}
+			if cfg.ShutdownTimeout != tt.wantShutdownTimeout {
+				t.Errorf("got shutdown timeout %v, want %v", cfg.ShutdownTimeout, tt.wantShutdownTimeout)
 			}
 		})
 	}

@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"time"
 
 	"github.com/mikecsmith/httplab/internal/config"
 	"github.com/mikecsmith/httplab/internal/logger"
@@ -50,12 +49,13 @@ func run(ctx context.Context, args []string, getenv func(string) string, out io.
 	httpServer := &http.Server{
 		Addr:         net.JoinHostPort(cfg.Host, cfg.Port),
 		Handler:      mux,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  cfg.RequestTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		IdleTimeout:  cfg.IdleTimeout,
 	}
 
 	httpServerErr := make(chan error, 1)
+
 	go func() {
 		slog.InfoContext(ctx, "Starting server", "addr", httpServer.Addr)
 		httpServerErr <- httpServer.ListenAndServe()
@@ -68,7 +68,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, out io.
 		slog.InfoContext(ctx, "Server shutting down")
 	}
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer shutdownCancel()
 
 	return httpServer.Shutdown(shutdownCtx)
