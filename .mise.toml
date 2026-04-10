@@ -10,10 +10,15 @@ ctlptl = "latest"
 
 [tasks.dev-build]
 description = "Compile a linux dev binary at dist/dev/server for Tilt live_update"
+# Build to a temp path and rename into place so Tilt's file watcher
+# sees a single atomic update instead of a half-written binary. Racing
+# the write leaves Tilt stuck in "Updating..." waiting for the file to
+# settle.
 run = """
 set -euo pipefail
 mkdir -p dist/dev
-CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOHOSTARCH) go build -o dist/dev/server ./cmd/server
+CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOHOSTARCH) go build -o dist/dev/server.tmp ./cmd/server
+mv dist/dev/server.tmp dist/dev/server
 """
 
 [tasks.cluster-up]

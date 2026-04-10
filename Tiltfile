@@ -81,32 +81,34 @@ local_resource(
     'go-build',
     cmd='mise run dev-build',
     deps=['cmd', 'internal', 'go.mod', 'go.sum'],
+    labels=['app'],
 )
 
 load('ext://restart_process', 'docker_build_with_restart')
 
-# Inline Dockerfile mirrors the production image but reads the binary
-# from dist/dev/server. Kept inline so the real Dockerfile stays
-# goreleaser-shaped ($TARGETPLATFORM layout).
+# Scoping the build context straight to `dist/dev/` sidesteps Tilt's
+# gitignore filtering entirely — the gitignored `dist/` prefix lives
+# above the context root, so buildkit never has to reason about it,
+# and `dist/` stays cleanly gitignored at the project level.
 #
-# docker_build_with_restart layers a static `tilt-restart-wrapper`
-# binary on top of the image and rewrites the entrypoint, so we don't
-# need a shell or `entr` inside the container — distroless static is
-# fine. On every live_update Tilt touches /.restart-proc inside the
-# container and the wrapper re-execs `/server` against the synced
-# binary. Replaces the deprecated `restart_container()` step.
+# docker_build_with_restart injects RUN touch/chmod + COPY steps for
+# its tilt-restart-wrapper, so the base image needs a shell and
+# coreutils at *build* time. That rules out distroless here — we use
+# alpine for the dev image. Production still goes through goreleaser
+# → distroless; this divergence only affects the Tilt inner loop.
+# On every live_update Tilt touches /tmp/.restart-proc and the wrapper
+# re-execs `/server` against the synced binary, replacing the
+# deprecated `restart_container()` step.
 docker_build_with_restart(
     'http-template',
-    context='.',
+    context='dist/dev',
     entrypoint='/server',
     dockerfile_contents='''
-FROM gcr.io/distroless/static-debian12:nonroot
-COPY dist/dev/server /server
-USER nonroot:nonroot
+FROM alpine:3.20
+COPY server /server
 EXPOSE 8080
 ENTRYPOINT ["/server"]
 ''',
-    only=['dist/dev/server'],
     live_update=[
         sync('dist/dev/server', '/server'),
     ],
@@ -135,8 +137,27 @@ k8s_resource(
     # NodePort 30080/30443 to host 80/443.
 )
 
+# Bundle the Gateway API control-plane objects (RBAC + GatewayClass +
+# Gateway + the two infra HTTPRoutes) into a single Tilt resource so
+# they show up under the `gateway` label instead of landing in the
+# default uncategorized bucket.
+k8s_resource(
+    objects=[
+        'traefik:serviceaccount',
+        'traefik-gateway:clusterrole',
+        'traefik-gateway:clusterrolebinding',
+        'traefik:gatewayclass',
+        'gateway:gateway',
+        'redirect-to-https:httproute',
+        'traefik-dashboard:httproute',
+    ],
+    new_name='gateway-config',
+    labels=['gateway'],
+)
+
 k8s_resource(
     'http-template',
+    objects=['http-template:httproute'],
     resource_deps=['go-build', 'traefik'],
     labels=['app'],
     links=[
