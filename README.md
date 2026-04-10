@@ -4,21 +4,6 @@ My starting point for new Go HTTP services. Standard library first, no framework
 
 If you're reading this and you're not me — feel free to use it. Nothing here is secret and nothing is supported.
 
-## What you get
-
-- `cmd/server` — `main` + `run(ctx, args, getenv, out, sig, ready)` in the [Mat Ryer style][ryer], with `NewServer` assembling the handler graph and a single `addRoutes` registering everything.
-- Per-route middleware chain ([Alex Edwards' `slices.Backward` pattern][edwards]): `RequestContext` → `Logging` → `SecureHeaders`.
-- `internal/logger` — `slog` with a context handler that pulls request-scoped attrs (`request_id`, `method`, `path`) into every record automatically.
-- `internal/request` / `internal/respond` — generic `Decode[T]` / `DecodeValid[T Validator]` and a small JSON response helper with sentinel errors.
-- `internal/middleware` — request ID propagation, structured request logging with status-aware levels, baseline security headers (CSP, HSTS, nosniff, etc.).
-- `internal/metrics` — OpenTelemetry MeterProvider plumbing wired through `otelhttp` on the server. Ships with the OTel global no-op so it costs nothing until you bolt on a real exporter.
-- `internal/config` — flags + env var parsing with a local `flag.FlagSet` (no globals), strict validation, and sensible defaults.
-- `cmd/server/main_test.go` — full e2e test that boots `run()` on port `0`, hits the real listener, and shuts it down via context cancel.
-- Graceful shutdown via `errgroup` with bounded shutdown contexts for both the HTTP server and the metrics provider.
-- `Dockerfile` — single-stage on `gcr.io/distroless/static-debian12:nonroot`. The binary is pre-compiled by goreleaser per architecture, so the image is just the static binary, nothing else.
-- GitHub Actions: `ci.yaml` runs tests/lint/govulncheck plus a container snapshot build on every PR; `release-please.yaml` cuts releases via [release-please][release-please] and publishes multi-arch (`linux/amd64`, `linux/arm64`) images to GHCR via goreleaser.
-- Dependabot for `gomod`, `github-actions`, and `docker`, with a tiny automerge workflow that auto-merges patch/minor bumps once CI is green and leaves majors for review.
-
 ## Use it as a template
 
 [`gonew`][gonew] copies the template into a new module and rewrites import paths in one shot:
@@ -32,11 +17,6 @@ go test ./...
 ```
 
 The OTel service name defaults to `filepath.Base(os.Args[0])`, so the binary name becomes the service name automatically — no constants to edit after `gonew`.
-
-Two things `gonew` can't rewrite for you:
-
-1. `.goreleaser.yaml` — `project_name` and the `ghcr.io/mikecsmith/http-template` image paths are hardcoded strings (marked with `# TODO(gonew):` comments). Update them to your new repo path.
-2. Repo settings on GitHub — enable **Allow auto-merge** and add a branch protection rule on `main` requiring CI to pass, otherwise the dependabot automerge workflow has nothing to gate on.
 
 ## Run it
 
@@ -70,7 +50,7 @@ For working against a real Gateway API + TLS setup the repo ships a [Tilt][tilt]
 mise install
 ```
 
-One-time per machine (re-run after `rm -rf dev/certs` to rotate the wildcard cert):
+One-time per machine (re-run after `rm -rf dev/certs` to rotate the wildcard cert or after removing the Kind cluster):
 
 ```sh
 mise run cluster-up
@@ -89,10 +69,10 @@ Routing topology, all served by Traefik on the kind node:
 | URL                                            | Routes to                                |
 | ---------------------------------------------- | ---------------------------------------- |
 | `http://*.cluster.localhost`                   | 301 → https                              |
-| `https://apis.cluster.localhost/<app-name>/*`  | `<app-name>` service (prefix stripped)   |
+| `https://api.cluster.localhost/<app-name>/*`   | `<app-name>` service (prefix stripped)   |
 | `https://traefik.cluster.localhost`            | Traefik dashboard                        |
 
-The `apis.` host is the shared multi-API entry point: every backend mounts under `apis.cluster.localhost/<service-name>/*` and the gateway's `URLRewrite` filter strips the `/<service-name>` prefix before forwarding, so each service keeps a flat route table internally. For this template that means `https://apis.cluster.localhost/http-template/hello` reaches the Go handler registered at `GET /hello`. Adding a new service is one HTTPRoute with a fresh prefix — no extra hostnames, no wildcard cert reissuance.
+The `api.` host is the shared multi-API entry point: the backend mounts under `api.cluster.localhost/<service-name>/*` and the gateway's `URLRewrite` filter strips the `/<service-name>` prefix before forwarding, so each service keeps a flat route table internally. For this template that means `https://api.cluster.localhost/http-template/hello` reaches the Go handler registered at `GET /hello`. Adding a new service is one HTTPRoute with a fresh prefix — no extra hostnames, no wildcard cert reissuance and matches common enterprise gateway patterns.
 
 Inner loop is binary-only: a `local_resource` cross-compiles `dist/dev/server` on every Go file change, Tilt's `live_update` syncs it into the running pod, and the `tilt-restart-wrapper` re-execs the process — no image rebuild on code changes. The dev image uses `alpine` (rather than the production distroless base) because the restart wrapper needs `touch`/`chmod` at build time and the manifest drops `readOnlyRootFilesystem` so live_update can overwrite `/server`. Production hardening still applies via the goreleaser-built distroless image.
 
@@ -122,7 +102,7 @@ Every option is settable via flag or env var. Env wins over flag.
 
 ## Logging
 
-`slog` with a JSON handler. The default level is `error` so probe traffic stays cheap — the `Logging` middleware guards its `slog.Log` call with `Enabled()` so dropped records don't allocate any attrs. Bump `LOG_LEVEL` to `info` while developing.
+`slog` with a JSON handler. The default level is `error` so probe traffic stays cheap — the `Logging` middleware guards its `slog.Log` call with `Enabled()` so dropped records don't allocate any attrs. Bump `LOG_LEVEL` to `info` while developing, or `debug` if you need probe logging.
 
 `RequestContext` injects `request_id`, `method`, and `path` as `slog.Attr` into the request context, and the logger's context handler pulls them into every `slog.*Context` call downstream — so handler code just does `slog.InfoContext(ctx, "...")` and the request fields show up automatically.
 
