@@ -1,0 +1,18 @@
+# Local dev cluster + registry, managed by ctlptl.
+#
+#   ctlptl apply  -f dev/cluster.yaml   # create
+#   ctlptl delete -f dev/cluster.yaml   # tear down
+#
+# Tilt's default_registry() in the Tiltfile points at localhost:5005,
+# which kind pulls from via the registry wired in below. This keeps
+# image pushes off the network and out of GHCR for local iteration.
+apiVersion: ctlptl.dev/v1alpha1
+kind: Registry
+name: ctlptl-registry
+port: 5005
+---
+apiVersion: ctlptl.dev/v1alpha1
+kind: Cluster
+product: kind
+name: kind-http-template
+registry: ctlptl-registry

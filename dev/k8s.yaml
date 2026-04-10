@@ -1,0 +1,66 @@
+# Minimal Deployment + Service for local Tilt iteration.
+#
+# The image name `http-template` is rewritten by Tilt to point at the
+# local registry (see Tiltfile's default_registry call). The container
+# runs as the distroless `nonroot` UID 65532 with a read-only root
+# filesystem — matches the production image's security posture so we
+# catch permission issues during dev rather than at deploy time.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: http-template
+  labels:
+    app: http-template
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: http-template
+  template:
+    metadata:
+      labels:
+        app: http-template
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: http-template
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: LOG_LEVEL
+              value: info
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: http-template
+spec:
+  selector:
+    app: http-template
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

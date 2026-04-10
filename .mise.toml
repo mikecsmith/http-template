@@ -5,6 +5,30 @@ lefthook = "latest"
 goreleaser = "latest"
 act = "latest"
 
+[tasks.dev-build]
+description = "Compile a linux dev binary at dist/dev/server for Tilt live_update"
+run = """
+set -euo pipefail
+mkdir -p dist/dev
+CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOHOSTARCH) go build -o dist/dev/server ./cmd/server
+"""
+
+[tasks.cluster-up]
+description = "Create the local kind cluster + registry via ctlptl"
+run = "ctlptl apply -f dev/cluster.yaml"
+
+[tasks.cluster-down]
+description = "Tear down the local kind cluster + registry"
+run = "ctlptl delete -f dev/cluster.yaml"
+
+[tasks.tilt-up]
+description = "Start Tilt against the local kind cluster"
+run = "tilt up"
+
+[tasks.tilt-down]
+description = "Stop Tilt and delete its resources"
+run = "tilt down"
+
 [tasks.snapshot]
 description = "Build a multi-arch snapshot release locally (no push)"
 run = "goreleaser release --snapshot --clean --skip=publish"
