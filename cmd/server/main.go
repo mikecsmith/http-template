@@ -21,6 +21,7 @@ import (
 
 	"github.com/mikecsmith/httplab/internal/config"
 	"github.com/mikecsmith/httplab/internal/logger"
+	"github.com/mikecsmith/httplab/internal/metrics"
 )
 
 func main() {
@@ -55,11 +56,18 @@ func run(
 
 	logger.Init(out, cfg.LogLevel)
 
+	// metrics.Init installs a MeterProvider into the OTel global when
+	// enabled, so that otelhttp (wired in NewServer) can pick it up
+	// without having to be handed a provider directly. The returned
+	// shutdown func is non-nil on the disabled path too; it is safe
+	// to call either way.
+	metricsShutdown, err := metrics.Init(cfg.MetricsEnabled)
+	if err != nil {
+		return fmt.Errorf("metrics init: %w", err)
+	}
+
 	ctx, cancel := signal.NotifyContext(ctx, sig)
 	defer cancel()
-
-	mux := http.NewServeMux()
-	addRoutes(mux, cfg)
 
 	// errgroup.WithContext gives us a derived context (gCtx) that is
 	// cancelled when either:
@@ -69,7 +77,7 @@ func run(
 
 	httpServer := &http.Server{
 		Addr:         net.JoinHostPort(cfg.Host, cfg.Port),
-		Handler:      mux,
+		Handler:      NewServer(cfg),
 		ReadTimeout:  cfg.RequestTimeout,
 		WriteTimeout: cfg.WriteTimeout,
 		IdleTimeout:  cfg.IdleTimeout,
@@ -101,7 +109,10 @@ func run(
 	// or a sibling goroutine errored), then calls Shutdown with a bounded
 	// timeout. The shutdown context is derived from context.Background
 	// rather than gCtx because gCtx is already cancelled at this point —
-	// we need a fresh deadline to bound the shutdown itself.
+	// we need a fresh deadline to bound the shutdown itself. The same
+	// bounded context is used to flush and tear down the MeterProvider
+	// before returning, so pending metric records get one last push at
+	// any exporter that was configured.
 	g.Go(func() error {
 		<-gCtx.Done()
 		slog.InfoContext(ctx, "Server shutting down")
@@ -109,6 +120,9 @@ func run(
 		defer shutdownCancel()
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
 			return fmt.Errorf("http shutdown: %w", err)
+		}
+		if err := metricsShutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("metrics shutdown: %w", err)
 		}
 		return nil
 	})

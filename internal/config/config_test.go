@@ -22,6 +22,7 @@ func TestParseConfig(t *testing.T) {
 		wantIdleTimeout     time.Duration
 		wantShutdownTimeout time.Duration
 		wantLogLevel        slog.Level
+		wantMetricsEnabled  bool
 		wantErr             bool
 	}{
 		{
@@ -35,6 +36,7 @@ func TestParseConfig(t *testing.T) {
 			wantIdleTimeout:     config.DefaultIdleTimeout,
 			wantShutdownTimeout: config.DefaultShutdownTimeout,
 			wantLogLevel:        slog.LevelError,
+			wantMetricsEnabled:  false,
 		},
 		{
 			name: "flags override defaults",
@@ -47,6 +49,7 @@ func TestParseConfig(t *testing.T) {
 				"--idle-timeout", "3s",
 				"--shutdown-timeout", "4s",
 				"--log-level", "info",
+				"--metrics-enabled",
 			},
 			getenv:              noEnv,
 			wantHost:            "localhost",
@@ -56,6 +59,7 @@ func TestParseConfig(t *testing.T) {
 			wantIdleTimeout:     3 * time.Second,
 			wantShutdownTimeout: 4 * time.Second,
 			wantLogLevel:        slog.LevelInfo,
+			wantMetricsEnabled:  true,
 		},
 		{
 			name: "env vars override flag defaults",
@@ -76,6 +80,8 @@ func TestParseConfig(t *testing.T) {
 					return "15s"
 				case "LOG_LEVEL":
 					return "warn"
+				case "METRICS_ENABLED":
+					return "true"
 				default:
 					return ""
 				}
@@ -87,6 +93,7 @@ func TestParseConfig(t *testing.T) {
 			wantIdleTimeout:     5 * time.Minute,
 			wantShutdownTimeout: 15 * time.Second,
 			wantLogLevel:        slog.LevelWarn,
+			wantMetricsEnabled:  true,
 		},
 		{
 			name: "env vars override flag values",
@@ -96,6 +103,7 @@ func TestParseConfig(t *testing.T) {
 				"--write-timeout", "2s",
 				"--idle-timeout", "3s",
 				"--log-level", "info",
+				"--metrics-enabled",
 			},
 			getenv: func(key string) string {
 				switch key {
@@ -107,6 +115,8 @@ func TestParseConfig(t *testing.T) {
 					return "9s"
 				case "LOG_LEVEL":
 					return "debug"
+				case "METRICS_ENABLED":
+					return "false"
 				default:
 					return ""
 				}
@@ -118,6 +128,7 @@ func TestParseConfig(t *testing.T) {
 			wantIdleTimeout:     9 * time.Second,
 			wantShutdownTimeout: config.DefaultShutdownTimeout,
 			wantLogLevel:        slog.LevelDebug,
+			wantMetricsEnabled:  false,
 		},
 		{
 			name:    "invalid flag returns error",
@@ -180,6 +191,17 @@ func TestParseConfig(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "invalid METRICS_ENABLED env returns error",
+			args: []string{"server"},
+			getenv: func(key string) string {
+				if key == "METRICS_ENABLED" {
+					return "banana"
+				}
+				return ""
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -214,6 +236,9 @@ func TestParseConfig(t *testing.T) {
 			}
 			if cfg.LogLevel != tt.wantLogLevel {
 				t.Errorf("got log level %v, want %v", cfg.LogLevel, tt.wantLogLevel)
+			}
+			if cfg.MetricsEnabled != tt.wantMetricsEnabled {
+				t.Errorf("got metrics enabled %v, want %v", cfg.MetricsEnabled, tt.wantMetricsEnabled)
 			}
 		})
 	}
