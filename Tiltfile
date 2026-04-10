@@ -76,12 +76,22 @@ local_resource(
     deps=['cmd', 'internal', 'go.mod', 'go.sum'],
 )
 
+load('ext://restart_process', 'docker_build_with_restart')
+
 # Inline Dockerfile mirrors the production image but reads the binary
 # from dist/dev/server. Kept inline so the real Dockerfile stays
 # goreleaser-shaped ($TARGETPLATFORM layout).
-docker_build(
+#
+# docker_build_with_restart layers a static `tilt-restart-wrapper`
+# binary on top of the image and rewrites the entrypoint, so we don't
+# need a shell or `entr` inside the container — distroless static is
+# fine. On every live_update Tilt touches /.restart-proc inside the
+# container and the wrapper re-execs `/server` against the synced
+# binary. Replaces the deprecated `restart_container()` step.
+docker_build_with_restart(
     'http-template',
     context='.',
+    entrypoint='/server',
     dockerfile_contents='''
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY dist/dev/server /server
@@ -92,9 +102,6 @@ ENTRYPOINT ["/server"]
     only=['dist/dev/server'],
     live_update=[
         sync('dist/dev/server', '/server'),
-        # distroless has no shell, so run() is unavailable —
-        # restart_container is the only way to pick up the new binary.
-        restart_container(),
     ],
 )
 
