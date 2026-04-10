@@ -1,7 +1,13 @@
 # Local dev cluster + registry, managed by ctlptl.
 #
-#   ctlptl apply  -f dev/cluster.yaml   # create
-#   ctlptl delete -f dev/cluster.yaml   # tear down
+# This file is a TEMPLATE — `mise run cluster-up` substitutes the
+# placeholders below with absolute host paths and writes the rendered
+# config to dist/dev/cluster.yaml (gitignored), which is what gets
+# passed to `ctlptl apply`. kind's extraMounts spec doesn't support
+# env-var expansion so we have to pre-render.
+#
+# Substituted variables:
+#   ${MKCERT_CAROOT} — `mkcert -CAROOT`, the local CA store
 #
 # Tilt's default_registry() in the Tiltfile points at localhost:5005,
 # which kind pulls from via the registry wired in below. This keeps
@@ -12,6 +18,11 @@
 # Traefik gateway running inside the cluster — no kubectl port-forward
 # required, no Tilt port_forwards. The pattern matches kind's official
 # "ingress" recipe.
+#
+# extraMounts drop the mkcert root CA straight into /etc/ssl/certs/
+# inside the node. Anything that reads SSL_CERT_DIR (the kubelet,
+# debian-based pods, etc.) trusts mkcert-issued certs immediately —
+# no `update-ca-certificates` rehash needed.
 apiVersion: ctlptl.dev/v1alpha1
 kind: Registry
 name: ctlptl-registry
@@ -42,3 +53,7 @@ kindV1Alpha4Cluster:
           hostPort: 443
           listenAddress: "127.0.0.1"
           protocol: TCP
+      extraMounts:
+        - hostPath: ${MKCERT_CAROOT}/rootCA.pem
+          containerPath: /etc/ssl/certs/mkcert-root.pem
+          readOnly: true
