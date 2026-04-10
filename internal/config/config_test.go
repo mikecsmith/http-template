@@ -23,6 +23,7 @@ func TestParseConfig(t *testing.T) {
 		wantShutdownTimeout time.Duration
 		wantLogLevel        slog.Level
 		wantMetricsEnabled  bool
+		wantOtelServiceName string
 		wantErr             bool
 	}{
 		{
@@ -37,6 +38,10 @@ func TestParseConfig(t *testing.T) {
 			wantShutdownTimeout: config.DefaultShutdownTimeout,
 			wantLogLevel:        slog.LevelError,
 			wantMetricsEnabled:  false,
+			// args[0] is "server", and service name defaults to
+			// filepath.Base(args[0]), so the test's default expectation
+			// is "server" rather than any hardcoded constant.
+			wantOtelServiceName: "server",
 		},
 		{
 			name: "flags override defaults",
@@ -50,6 +55,7 @@ func TestParseConfig(t *testing.T) {
 				"--shutdown-timeout", "4s",
 				"--log-level", "info",
 				"--metrics-enabled",
+				"--otel-service-name", "checkout-api",
 			},
 			getenv:              noEnv,
 			wantHost:            "localhost",
@@ -60,6 +66,7 @@ func TestParseConfig(t *testing.T) {
 			wantShutdownTimeout: 4 * time.Second,
 			wantLogLevel:        slog.LevelInfo,
 			wantMetricsEnabled:  true,
+			wantOtelServiceName: "checkout-api",
 		},
 		{
 			name: "env vars override flag defaults",
@@ -82,6 +89,8 @@ func TestParseConfig(t *testing.T) {
 					return "warn"
 				case "METRICS_ENABLED":
 					return "true"
+				case "OTEL_SERVICE_NAME":
+					return "billing-api"
 				default:
 					return ""
 				}
@@ -94,6 +103,7 @@ func TestParseConfig(t *testing.T) {
 			wantShutdownTimeout: 15 * time.Second,
 			wantLogLevel:        slog.LevelWarn,
 			wantMetricsEnabled:  true,
+			wantOtelServiceName: "billing-api",
 		},
 		{
 			name: "env vars override flag values",
@@ -104,6 +114,7 @@ func TestParseConfig(t *testing.T) {
 				"--idle-timeout", "3s",
 				"--log-level", "info",
 				"--metrics-enabled",
+				"--otel-service-name", "from-flag",
 			},
 			getenv: func(key string) string {
 				switch key {
@@ -117,6 +128,8 @@ func TestParseConfig(t *testing.T) {
 					return "debug"
 				case "METRICS_ENABLED":
 					return "false"
+				case "OTEL_SERVICE_NAME":
+					return "from-env"
 				default:
 					return ""
 				}
@@ -129,6 +142,7 @@ func TestParseConfig(t *testing.T) {
 			wantShutdownTimeout: config.DefaultShutdownTimeout,
 			wantLogLevel:        slog.LevelDebug,
 			wantMetricsEnabled:  false,
+			wantOtelServiceName: "from-env",
 		},
 		{
 			name:    "invalid flag returns error",
@@ -239,6 +253,9 @@ func TestParseConfig(t *testing.T) {
 			}
 			if cfg.MetricsEnabled != tt.wantMetricsEnabled {
 				t.Errorf("got metrics enabled %v, want %v", cfg.MetricsEnabled, tt.wantMetricsEnabled)
+			}
+			if cfg.OtelServiceName != tt.wantOtelServiceName {
+				t.Errorf("got service name %q, want %q", cfg.OtelServiceName, tt.wantOtelServiceName)
 			}
 		})
 	}

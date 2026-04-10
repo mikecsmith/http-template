@@ -27,5 +27,5 @@ import (
 func NewServer(cfg config.Config) http.Handler {
 	mux := http.NewServeMux()
 	addRoutes(mux, cfg)
-	return otelhttp.NewHandler(mux, "httplab")
+	return otelhttp.NewHandler(mux, cfg.OtelServiceName)
 }

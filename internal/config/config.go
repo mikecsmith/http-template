@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strconv"
 	"time"
 )
@@ -22,6 +23,7 @@ const (
 	// [internal/metrics.Init]. See that package's doc comment for the
 	// shape of the change.
 	DefaultMetricsEnabled  = false
+	DefaultOtelServiceName = "service"
 	DefaultRequestTimeout  = 5 * time.Second
 	DefaultWriteTimeout    = 10 * time.Second
 	DefaultIdleTimeout     = 120 * time.Second
@@ -33,10 +35,11 @@ const (
 // LogLevel is parsed into [slog.Level] at config time so invalid values
 // fail at startup with a clear error rather than deep in a log call.
 type Config struct {
-	Host           string
-	Port           string
-	LogLevel       slog.Level
-	MetricsEnabled bool
+	Host            string
+	Port            string
+	LogLevel        slog.Level
+	MetricsEnabled  bool
+	OtelServiceName string
 
 	RequestTimeout  time.Duration
 	WriteTimeout    time.Duration
@@ -52,6 +55,11 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	var cfg Config
 	flags := flag.NewFlagSet("server", flag.ContinueOnError)
 
+	otelServiceName := DefaultOtelServiceName
+	if len(args) > 0 {
+		otelServiceName = filepath.Base(args[0])
+	}
+
 	flags.StringVar(&cfg.Port, "port", DefaultPort, "The port used by the HTTP server")
 	flags.StringVar(&cfg.Host, "host", DefaultHost, "The host used by the HTTP server")
 	flags.DurationVar(&cfg.RequestTimeout, "request-timeout", DefaultRequestTimeout, "Maximum duration to wait for a request to complete")
@@ -59,6 +67,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	flags.DurationVar(&cfg.IdleTimeout, "idle-timeout", DefaultIdleTimeout, "Maximum duration to wait for a request when keep-alive is enabled")
 	flags.DurationVar(&cfg.ShutdownTimeout, "shutdown-timeout", DefaultShutdownTimeout, "Maximum duration to wait before shutting down")
 	flags.BoolVar(&cfg.MetricsEnabled, "metrics-enabled", DefaultMetricsEnabled, "Install an OTel MeterProvider (template ships with a no-op; extend internal/metrics to wire a real exporter)")
+	flags.StringVar(&cfg.OtelServiceName, "otel-service-name", otelServiceName, "OpenTelemetry service name (defaults to the binary name; override via OTEL_SERVICE_NAME)")
 	logLevelStr := flags.String("log-level", DefaultLogLevel, "Log level: debug, info, warn, error") // string for later processing
 
 	if err := flags.Parse(args[1:]); err != nil {
@@ -81,6 +90,10 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 
 	if err := envToBool("METRICS_ENABLED", getenv, &cfg.MetricsEnabled); err != nil {
 		return cfg, err
+	}
+
+	if v := getenv("OTEL_SERVICE_NAME"); v != "" {
+		cfg.OtelServiceName = v
 	}
 
 	if err := envToDuration("REQUEST_TIMEOUT", getenv, &cfg.RequestTimeout); err != nil {
