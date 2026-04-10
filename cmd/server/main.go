@@ -16,6 +16,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -23,6 +25,43 @@ import (
 	"github.com/mikecsmith/http-template/internal/logger"
 	"github.com/mikecsmith/http-template/internal/metrics"
 )
+
+// Build metadata. version is always set via -ldflags at release time
+// (see .goreleaser.yaml). commit and date are also set via -ldflags on
+// release builds; on local `go build` they fall back to the VCS info
+// Go embeds automatically in BuildInfo.
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
+func init() {
+	// On release builds ldflags overwrites these vars before init runs,
+	// so we only fill in from BuildInfo when they still have their dev
+	// defaults — meaning this is a plain `go build` from a git checkout.
+	if commit != "none" && date != "unknown" {
+		return
+	}
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return
+	}
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			if commit == "none" && len(s.Value) >= 8 {
+				commit = s.Value[:8]
+			}
+		case "vcs.time":
+			if date == "unknown" {
+				if t, err := time.Parse(time.RFC3339, s.Value); err == nil {
+					date = t.Format(time.DateOnly)
+				}
+			}
+		}
+	}
+}
 
 func main() {
 	ctx := context.Background()
@@ -98,7 +137,7 @@ func run(
 	// Serve goroutine. http.ErrServerClosed is the expected sentinel
 	// returned after a successful Shutdown and is not a real error.
 	g.Go(func() error {
-		slog.InfoContext(gCtx, "Starting server", "addr", httpServer.Addr)
+		slog.InfoContext(gCtx, "Starting server", "addr", httpServer.Addr, "version", version, "commit", commit, "date", date)
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("http server: %w", err)
 		}
