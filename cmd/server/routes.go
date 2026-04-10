@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/mikecsmith/httplab/internal/config"
 	"github.com/mikecsmith/httplab/internal/handle"
 	"github.com/mikecsmith/httplab/internal/middleware"
 )
@@ -27,7 +28,7 @@ func (c middlewareChain) then(h http.Handler) http.Handler {
 // Health probes are registered without middleware so Kubernetes probes
 // stay lightweight. API routes use the apiChain for request context
 // enrichment (request ID, structured logging attributes).
-func addRoutes(mux *http.ServeMux, _ config) {
+func addRoutes(mux *http.ServeMux, _ config.Config) {
 	globalChain := middlewareChain{}
 	apiChain := append(globalChain, middleware.RequestContext)
 	mux.Handle("GET /healthz", handle.Healthz())

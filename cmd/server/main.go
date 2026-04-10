@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/mikecsmith/httplab/internal/config"
 	"github.com/mikecsmith/httplab/internal/logger"
 )
 
@@ -35,7 +36,7 @@ func main() {
 func run(ctx context.Context, args []string, getenv func(string) string, out io.Writer, sig os.Signal) error {
 	logger.Init(out)
 
-	cfg, err := parseConfig(args, getenv)
+	cfg, err := config.ParseConfig(args, getenv)
 	if err != nil {
 		return err
 	}

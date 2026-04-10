@@ -7,13 +7,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mikecsmith/httplab/internal/config"
 	"github.com/mikecsmith/httplab/internal/middleware"
 )
 
 func newMux(t *testing.T) *http.ServeMux {
 	t.Helper()
 	mux := http.NewServeMux()
-	addRoutes(mux, config{})
+	addRoutes(mux, config.Config{})
 	return mux
 }
 

@@ -1,4 +1,4 @@
-package main
+package config_test
 
 import (
 	"testing"
@@ -30,8 +30,8 @@ func TestParseConfig(t *testing.T) {
 			wantPort: "3000",
 		},
 		{
-			name:   "env vars override flag defaults",
-			args:   []string{"server"},
+			name: "env vars override flag defaults",
+			args: []string{"server"},
 			getenv: func(key string) string {
 				switch key {
 				case "PORT":
@@ -55,7 +55,7 @@ func TestParseConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := parseConfig(tt.args, tt.getenv)
+			cfg, err := ParseConfig(tt.args, tt.getenv)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
