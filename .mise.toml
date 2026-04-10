@@ -15,44 +15,11 @@ CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOHOSTARCH) go build -o dist/dev/server
 
 [tasks.cluster-up]
 description = "Bring up the local kind cluster + registry with mkcert CA mounted"
-run = """
-set -euo pipefail
-BASE_DOMAIN="${BASE_DOMAIN:-cluster.localhost}"
-
-# Ensure the local mkcert CA exists and is trusted by the host. The
-# kind node bind-mounts $(mkcert -CAROOT)/rootCA.pem into /etc/ssl/certs/
-# so the kubelet (and any pod that respects the system trust store)
-# verifies mkcert-issued certs without further config.
-mkcert -install >/dev/null
-MKCERT_CAROOT=$(mkcert -CAROOT)
-
-# Generate the wildcard leaf cert if missing. Presence of dev/certs/
-# is the sentinel — `rm -rf dev/certs` and re-run to rotate.
-if [ ! -d dev/certs ]; then
-  mkdir -p dev/certs
-  mkcert -cert-file dev/certs/cluster.pem -key-file dev/certs/cluster-key.pem \\
-    "$BASE_DOMAIN" "*.$BASE_DOMAIN"
-fi
-
-# kind's extraMounts spec doesn't support env-var expansion, so render
-# the ctlptl config with absolute paths before applying.
-mkdir -p dist/dev
-sed "s|\\${MKCERT_CAROOT}|$MKCERT_CAROOT|g" dev/cluster.yaml > dist/dev/cluster.yaml
-
-ctlptl apply -f dist/dev/cluster.yaml
-"""
+run = "./dev/cluster-up"
 
 [tasks.cluster-down]
 description = "Tear down the local kind cluster + registry"
 run = "ctlptl delete -f dist/dev/cluster.yaml 2>/dev/null || ctlptl delete cluster kind-http-template"
-
-[tasks.tilt-up]
-description = "Start Tilt against the local kind cluster"
-run = "tilt up"
-
-[tasks.tilt-down]
-description = "Stop Tilt and delete its resources"
-run = "tilt down"
 
 [tasks.snapshot]
 description = "Build a multi-arch snapshot release locally (no push)"

@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Bring up the local kind cluster + registry with the mkcert root CA
+# bind-mounted into the node so kubelet (and any pod that respects the
+# system trust store) verifies mkcert-issued certs without further
+# config.
+#
+# Invoked via `mise run cluster-up`. Idempotent — safe to re-run.
+#
+# Environment overrides:
+#   BASE_DOMAIN  — wildcard hostname suffix (default: cluster.localhost)
+
+set -euo pipefail
+
+BASE_DOMAIN="${BASE_DOMAIN:-cluster.localhost}"
+
+# Resolve the project root from the script location so the task works
+# regardless of where mise was invoked from.
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$PROJECT_DIR"
+
+# Ensure the local mkcert CA exists and is trusted by the host.
+mkcert -install >/dev/null
+MKCERT_CAROOT="$(mkcert -CAROOT)"
+
+# Generate the wildcard leaf cert if missing. Presence of dev/certs/
+# is the sentinel — `rm -rf dev/certs` and re-run to rotate.
+if [ ! -d dev/certs ]; then
+  mkdir -p dev/certs
+  mkcert \
+    -cert-file dev/certs/cluster.pem \
+    -key-file dev/certs/cluster-key.pem \
+    "$BASE_DOMAIN" "*.$BASE_DOMAIN"
+fi
+
+# kind's extraMounts spec doesn't support env-var expansion, so render
+# the ctlptl config with absolute paths before applying. The rendered
+# file lands under dist/ which is gitignored.
+mkdir -p dist/dev
+sed "s|\${MKCERT_CAROOT}|$MKCERT_CAROOT|g" dev/cluster.yaml > dist/dev/cluster.yaml
+
+ctlptl apply -f dist/dev/cluster.yaml

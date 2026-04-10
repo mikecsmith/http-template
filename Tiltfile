@@ -8,7 +8,7 @@
 # Inner loop:
 #   1. `mise run cluster-up`  (once per machine — also re-run after
 #      `rm -rf dev/certs` to rotate the wildcard cert)
-#   2. `mise run tilt-up`     (or `tilt up`)
+#   2. `tilt up`
 #   3. Edit Go files. `go-build` recompiles a fresh linux binary at
 #      dist/dev/server, live_update sync's it into the running pod and
 #      restart_container() bounces the process — no image rebuild for
