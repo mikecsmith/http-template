@@ -136,8 +136,14 @@ func run(
 
 	// Serve goroutine. http.ErrServerClosed is the expected sentinel
 	// returned after a successful Shutdown and is not a real error.
+	//
+	// The startup banner is written directly to out via fmt rather than
+	// slog so it always prints regardless of LOG_LEVEL — the default
+	// level is "error" and we still want operators to see what version
+	// of the binary started and where it's listening.
 	g.Go(func() error {
-		slog.InfoContext(gCtx, "Starting server", "addr", httpServer.Addr, "version", version, "commit", commit, "date", date)
+		fmt.Fprintf(out, "starting server addr=%s version=%s commit=%s date=%s\n",
+			httpServer.Addr, version, commit, date)
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			return fmt.Errorf("http server: %w", err)
 		}
