@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"log/slog"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ func TestParseConfig(t *testing.T) {
 		wantWriteTimeout    time.Duration
 		wantIdleTimeout     time.Duration
 		wantShutdownTimeout time.Duration
+		wantLogLevel        slog.Level
 		wantErr             bool
 	}{
 		{
@@ -32,6 +34,7 @@ func TestParseConfig(t *testing.T) {
 			wantWriteTimeout:    config.DefaultWriteTimeout,
 			wantIdleTimeout:     config.DefaultIdleTimeout,
 			wantShutdownTimeout: config.DefaultShutdownTimeout,
+			wantLogLevel:        slog.LevelError,
 		},
 		{
 			name: "flags override defaults",
@@ -43,6 +46,7 @@ func TestParseConfig(t *testing.T) {
 				"--write-timeout", "2s",
 				"--idle-timeout", "3s",
 				"--shutdown-timeout", "4s",
+				"--log-level", "info",
 			},
 			getenv:              noEnv,
 			wantHost:            "localhost",
@@ -51,6 +55,7 @@ func TestParseConfig(t *testing.T) {
 			wantWriteTimeout:    2 * time.Second,
 			wantIdleTimeout:     3 * time.Second,
 			wantShutdownTimeout: 4 * time.Second,
+			wantLogLevel:        slog.LevelInfo,
 		},
 		{
 			name: "env vars override flag defaults",
@@ -58,7 +63,7 @@ func TestParseConfig(t *testing.T) {
 			getenv: func(key string) string {
 				switch key {
 				case "PORT":
-					return "9090"
+					return "9091"
 				case "HOST":
 					return "0.0.0.0"
 				case "REQUEST_TIMEOUT":
@@ -69,16 +74,19 @@ func TestParseConfig(t *testing.T) {
 					return "5m"
 				case "SHUTDOWN_TIMEOUT":
 					return "15s"
+				case "LOG_LEVEL":
+					return "warn"
 				default:
 					return ""
 				}
 			},
 			wantHost:            "0.0.0.0",
-			wantPort:            "9090",
+			wantPort:            "9091",
 			wantRequestTimeout:  15 * time.Second,
 			wantWriteTimeout:    30 * time.Second,
 			wantIdleTimeout:     5 * time.Minute,
 			wantShutdownTimeout: 15 * time.Second,
+			wantLogLevel:        slog.LevelWarn,
 		},
 		{
 			name: "env vars override flag values",
@@ -87,6 +95,7 @@ func TestParseConfig(t *testing.T) {
 				"--request-timeout", "1s",
 				"--write-timeout", "2s",
 				"--idle-timeout", "3s",
+				"--log-level", "info",
 			},
 			getenv: func(key string) string {
 				switch key {
@@ -96,6 +105,8 @@ func TestParseConfig(t *testing.T) {
 					return "8s"
 				case "IDLE_TIMEOUT":
 					return "9s"
+				case "LOG_LEVEL":
+					return "debug"
 				default:
 					return ""
 				}
@@ -106,6 +117,7 @@ func TestParseConfig(t *testing.T) {
 			wantWriteTimeout:    8 * time.Second,
 			wantIdleTimeout:     9 * time.Second,
 			wantShutdownTimeout: config.DefaultShutdownTimeout,
+			wantLogLevel:        slog.LevelDebug,
 		},
 		{
 			name:    "invalid flag returns error",
@@ -157,6 +169,17 @@ func TestParseConfig(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "invalid LOG_LEVEL env returns error",
+			args: []string{"server"},
+			getenv: func(key string) string {
+				if key == "LOG_LEVEL" {
+					return "banana"
+				}
+				return ""
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -188,6 +211,9 @@ func TestParseConfig(t *testing.T) {
 			}
 			if cfg.ShutdownTimeout != tt.wantShutdownTimeout {
 				t.Errorf("got shutdown timeout %v, want %v", cfg.ShutdownTimeout, tt.wantShutdownTimeout)
+			}
+			if cfg.LogLevel != tt.wantLogLevel {
+				t.Errorf("got log level %v, want %v", cfg.LogLevel, tt.wantLogLevel)
 			}
 		})
 	}

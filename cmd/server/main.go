@@ -48,12 +48,12 @@ func run(
 	sig os.Signal,
 	ready func(addr string),
 ) error {
-	logger.Init(out)
-
 	cfg, err := config.ParseConfig(args, getenv)
 	if err != nil {
 		return err
 	}
+
+	logger.Init(out, cfg.LogLevel)
 
 	ctx, cancel := signal.NotifyContext(ctx, sig)
 	defer cancel()

@@ -4,34 +4,38 @@ package config
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"time"
 )
 
 const (
 	DefaultPort            = "8080"
 	DefaultHost            = ""
+	DefaultLogLevel        = "error"
 	DefaultRequestTimeout  = 5 * time.Second
 	DefaultWriteTimeout    = 10 * time.Second
 	DefaultIdleTimeout     = 120 * time.Second
 	DefaultShutdownTimeout = 10 * time.Second
 )
 
-// Config holds the server's runtime configuration. Fields are strings
-// because [net.JoinHostPort] expects them that way. No validation is
-// performed here — invalid values (e.g. a non-numeric port) will
-// surface as a clear error from [net.Listen] at startup.
+// Config holds the server's runtime configuration. String fields (Host,
+// Port) are strings because [net.JoinHostPort] expects them that way.
+// LogLevel is parsed into [slog.Level] at config time so invalid values
+// fail at startup with a clear error rather than deep in a log call.
 type Config struct {
-	Host            string
-	Port            string
+	Host     string
+	Port     string
+	LogLevel slog.Level
+
 	RequestTimeout  time.Duration
 	WriteTimeout    time.Duration
 	IdleTimeout     time.Duration
 	ShutdownTimeout time.Duration
 }
 
-// ParseConfig builds a [config] from command-line flags and environment
+// ParseConfig builds a [Config] from command-line flags and environment
 // variables. Flags are parsed first using a local [flag.FlagSet] (not
-// the global one) so that parallel test calls to [run] don't interfere.
+// the global one) so that parallel test calls to run don't interfere.
 // Environment variables override flag values when set.
 func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	var cfg Config
@@ -43,6 +47,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	flags.DurationVar(&cfg.WriteTimeout, "write-timeout", DefaultWriteTimeout, "Maximum duration to attempt writing a response")
 	flags.DurationVar(&cfg.IdleTimeout, "idle-timeout", DefaultIdleTimeout, "Maximum duration to wait for a request when keep-alive is enabled")
 	flags.DurationVar(&cfg.ShutdownTimeout, "shutdown-timeout", DefaultShutdownTimeout, "Maximum duration to wait before shutting down")
+	logLevelStr := flags.String("log-level", DefaultLogLevel, "Log level: debug, info, warn, error") // string for later processing
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return cfg, fmt.Errorf("ParseConfig flags: %w", err)
@@ -51,9 +56,15 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 	if v := getenv("PORT"); v != "" {
 		cfg.Port = v
 	}
-
 	if v := getenv("HOST"); v != "" {
 		cfg.Host = v
+	}
+
+	if v := getenv("LOG_LEVEL"); v != "" {
+		*logLevelStr = v
+	}
+	if err := cfg.LogLevel.UnmarshalText([]byte(*logLevelStr)); err != nil {
+		return cfg, fmt.Errorf("LOG_LEVEL %q is not valid: %w", *logLevelStr, err)
 	}
 
 	if err := envToDuration("REQUEST_TIMEOUT", getenv, &cfg.RequestTimeout); err != nil {
