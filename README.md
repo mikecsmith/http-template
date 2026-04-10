@@ -15,6 +15,9 @@ If you're reading this and you're not me — feel free to use it. Nothing here i
 - `internal/config` — flags + env var parsing with a local `flag.FlagSet` (no globals), strict validation, and sensible defaults.
 - `cmd/server/main_test.go` — full e2e test that boots `run()` on port `0`, hits the real listener, and shuts it down via context cancel.
 - Graceful shutdown via `errgroup` with bounded shutdown contexts for both the HTTP server and the metrics provider.
+- `Dockerfile` — single-stage on `gcr.io/distroless/static-debian12:nonroot`. The binary is pre-compiled by goreleaser per architecture, so the image is just the static binary, nothing else.
+- GitHub Actions: `ci.yaml` runs tests/lint/govulncheck plus a container snapshot build on every PR; `release-please.yaml` cuts releases via [release-please][release-please] and publishes multi-arch (`linux/amd64`, `linux/arm64`) images to GHCR via goreleaser.
+- Dependabot for `gomod`, `github-actions`, and `docker`, with a tiny automerge workflow that auto-merges patch/minor bumps once CI is green and leaves majors for review.
 
 ## Use it as a template
 
@@ -30,6 +33,11 @@ go test ./...
 
 The OTel service name defaults to `filepath.Base(os.Args[0])`, so the binary name becomes the service name automatically — no constants to edit after `gonew`.
 
+Two things `gonew` can't rewrite for you:
+
+1. `.goreleaser.yaml` — `project_name` and the `ghcr.io/mikecsmith/http-template` image paths are hardcoded strings (marked with `# TODO(gonew):` comments). Update them to your new repo path.
+2. Repo settings on GitHub — enable **Allow auto-merge** and add a branch protection rule on `main` requiring CI to pass, otherwise the dependabot automerge workflow has nothing to gate on.
+
 ## Run it
 
 ```sh
@@ -37,6 +45,13 @@ go run ./cmd/server
 # or with overrides
 go run ./cmd/server --port 9000 --log-level info --metrics-enabled
 PORT=9000 LOG_LEVEL=debug go run ./cmd/server
+```
+
+Or build the container locally with goreleaser (matches what CI/release does):
+
+```sh
+goreleaser release --snapshot --clean --skip=publish
+docker run --rm -p 8080:8080 ghcr.io/mikecsmith/http-template:<snapshot-tag>-amd64
 ```
 
 Then:
@@ -79,6 +94,17 @@ To turn metrics on, edit `internal/metrics/metrics.go`. The doc comment walks th
 
 Conservative baseline for a JSON API: `nosniff`, restrictive CSP, `no-referrer`, two-year HSTS, and `same-origin` CORP. If you serve HTML from the same binary, override CSP for those routes. See `internal/middleware/secure_headers.go` for the rationale on each.
 
+## Releases & containers
+
+Releases are driven by [release-please][release-please] off conventional commits — no manual tagging:
+
+1. Land conventional commits on `main` (`feat:`, `fix:`, `chore:`, …).
+2. release-please opens/updates a release PR with the generated changelog and version bump.
+3. Merging the release PR creates the `vX.Y.Z` tag, which triggers goreleaser.
+4. goreleaser builds `linux/amd64` + `linux/arm64` binaries, builds per-arch images from `Dockerfile`, and stitches them into a multi-arch manifest pushed to `ghcr.io/<owner>/<repo>:X.Y.Z` and `:latest`.
+
+Build version, commit, and date are stamped into the binary via `-ldflags` and logged on startup. Local `go build` falls back to Go's embedded `runtime/debug.BuildInfo` (`vcs.revision` truncated to 8 chars, `vcs.time` as the date), so even dev builds report a real commit.
+
 ## Layout
 
 ```
@@ -108,3 +134,4 @@ The `cmd/server` test exercises the full lifecycle: it calls `run()` on port `0`
 [ryer]: https://grafana.com/blog/2024/02/09/how-i-write-http-services-in-go-after-13-years/
 [edwards]: https://www.alexedwards.net/blog/organize-your-go-middleware-without-dependencies
 [gonew]: https://go.dev/blog/gonew
+[release-please]: https://github.com/googleapis/release-please
