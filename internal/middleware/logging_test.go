@@ -9,7 +9,7 @@ import (
 
 	"log/slog"
 
-	"github.com/mikecsmith/httplab/internal/middleware"
+	"github.com/mikecsmith/http-template/internal/middleware"
 )
 
 // Aliases to the package constants so each subtest reads cleanly.

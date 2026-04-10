@@ -5,7 +5,7 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	"github.com/mikecsmith/httplab/internal/config"
+	"github.com/mikecsmith/http-template/internal/config"
 )
 
 // NewServer is the single place where the HTTP handler graph is

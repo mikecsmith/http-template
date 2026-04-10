@@ -1,4 +1,4 @@
-module github.com/mikecsmith/httplab
+module github.com/mikecsmith/http-template
 
 go 1.26
 

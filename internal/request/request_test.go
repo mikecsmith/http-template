@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mikecsmith/httplab/internal/request"
+	"github.com/mikecsmith/http-template/internal/request"
 )
 
 type testPayload struct {

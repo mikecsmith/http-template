@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mikecsmith/httplab/internal/respond"
+	"github.com/mikecsmith/http-template/internal/respond"
 )
 
 func newRequest(t *testing.T) *http.Request {

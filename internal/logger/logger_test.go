@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/mikecsmith/httplab/internal/logger"
+	"github.com/mikecsmith/http-template/internal/logger"
 )
 
 // testHandler returns a slog.Logger backed by a contextHandler writing

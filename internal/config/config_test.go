@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mikecsmith/httplab/internal/config"
+	"github.com/mikecsmith/http-template/internal/config"
 )
 
 func TestParseConfig(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mikecsmith/httplab/internal/request"
-	"github.com/mikecsmith/httplab/internal/respond"
+	"github.com/mikecsmith/http-template/internal/request"
+	"github.com/mikecsmith/http-template/internal/respond"
 )
 
 type helloWorldReq struct {

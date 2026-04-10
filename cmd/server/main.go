@@ -19,9 +19,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/mikecsmith/httplab/internal/config"
-	"github.com/mikecsmith/httplab/internal/logger"
-	"github.com/mikecsmith/httplab/internal/metrics"
+	"github.com/mikecsmith/http-template/internal/config"
+	"github.com/mikecsmith/http-template/internal/logger"
+	"github.com/mikecsmith/http-template/internal/metrics"
 )
 
 func main() {

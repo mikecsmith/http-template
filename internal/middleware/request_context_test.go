@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mikecsmith/httplab/internal/logger"
-	"github.com/mikecsmith/httplab/internal/middleware"
+	"github.com/mikecsmith/http-template/internal/logger"
+	"github.com/mikecsmith/http-template/internal/middleware"
 )
 
 // Aliases to the package constants so each subtest can read cleanly

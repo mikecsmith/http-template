@@ -3,7 +3,7 @@ package handle
 import (
 	"net/http"
 
-	"github.com/mikecsmith/httplab/internal/respond"
+	"github.com/mikecsmith/http-template/internal/respond"
 )
 
 func NotFound() http.HandlerFunc {

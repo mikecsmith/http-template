@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/mikecsmith/httplab/internal/config"
-	"github.com/mikecsmith/httplab/internal/handle"
-	"github.com/mikecsmith/httplab/internal/middleware"
+	"github.com/mikecsmith/http-template/internal/config"
+	"github.com/mikecsmith/http-template/internal/handle"
+	"github.com/mikecsmith/http-template/internal/middleware"
 )
 
 // middlewareChain is an ordered list of middleware. The [then] method

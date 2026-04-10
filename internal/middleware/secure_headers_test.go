@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mikecsmith/httplab/internal/middleware"
+	"github.com/mikecsmith/http-template/internal/middleware"
 )
 
 func TestSecureHeaders(t *testing.T) {

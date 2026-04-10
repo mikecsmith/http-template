@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/mikecsmith/httplab/internal/logger"
+	"github.com/mikecsmith/http-template/internal/logger"
 )
 
 // RequestContext middleware constants. The header name follows the
