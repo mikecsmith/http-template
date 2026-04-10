@@ -2,4 +2,25 @@
 go = "1.26"
 golangci-lint = "latest"
 lefthook = "latest"
-vhs = "latest"
+goreleaser = "latest"
+act = "latest"
+
+[tasks.snapshot]
+description = "Build a multi-arch snapshot release locally (no push)"
+run = "goreleaser release --snapshot --clean --skip=publish"
+
+[tasks.release-check]
+description = "Validate the .goreleaser.yaml config"
+run = "goreleaser check"
+
+[tasks.act-ci]
+description = "Run the CI workflow locally via act (requires Docker)"
+run = "act pull_request -W .github/workflows/ci.yaml --container-architecture linux/arm64"
+
+[tasks.act-release]
+description = "Run the release-please workflow locally via act (requires Docker)"
+run = "act push -W .github/workflows/release-please.yaml --container-architecture linux/arm64"
+
+[tasks.act-dependabot]
+description = "Run the dependabot automerge workflow locally via act (requires Docker)"
+run = "act pull_request -W .github/workflows/dependabot-automerge.yaml --container-architecture linux/arm64"
