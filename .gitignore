@@ -1,2 +1,10 @@
-dist/
+# Goreleaser writes to dist/, but we also keep the Tilt dev binary at
+# dist/dev/server. Tilt's build context honors .gitignore, so we can't
+# blanket-ignore dist/ — we need the binary visible to docker_build.
+# Excluding children of dist/ (instead of dist/ itself) lets us
+# re-include dist/dev/server with a negation rule.
+dist/*
+!dist/dev/
+dist/dev/*
+!dist/dev/server
 dev/certs/

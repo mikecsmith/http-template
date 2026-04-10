@@ -70,6 +70,13 @@ kubectl create secret tls cluster-tls \
 
 # Native Go compile on the host. Faster than building inside Docker;
 # the resulting binary gets sync'd into the container by live_update.
+#
+# The synchronous local() seed runs at Tiltfile-load time so the
+# binary exists on disk before docker_build_with_restart computes its
+# build context. The local_resource then handles ongoing rebuilds on
+# source changes — Tilt won't sequence local_resource against an
+# image build automatically, so we need both.
+local('mise run dev-build', quiet=True)
 local_resource(
     'go-build',
     cmd='mise run dev-build',

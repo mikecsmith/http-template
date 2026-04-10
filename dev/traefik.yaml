@@ -105,11 +105,12 @@ spec:
             - --log.level=INFO
             - --accesslog=true
             - --api.dashboard=true
+            # api.insecure=true implicitly creates the `traefik`
+            # entrypoint on :8080 and exposes the dashboard on it.
             - --api.insecure=true
             - --ping=true
             - --entryPoints.web.address=:80
             - --entryPoints.websecure.address=:443
-            - --entryPoints.traefik.address=:8080
             - --providers.kubernetesgateway=true
           ports:
             - name: web
