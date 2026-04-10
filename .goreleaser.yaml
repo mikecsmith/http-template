@@ -1,0 +1,75 @@
+# TODO(gonew): update project_name and all ghcr.io image paths below when
+# copying this template into a new project.
+version: 2
+project_name: http-template
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    main: ./cmd/server
+    binary: server
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}}
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_v{{ .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+
+dockers:
+  - image_templates:
+      # TODO(gonew): update image path
+      - "ghcr.io/mikecsmith/http-template:{{ .Version }}-amd64"
+    dockerfile: Dockerfile
+    use: buildx
+    goarch: amd64
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.source={{.GitURL}}"
+      - "--label=org.opencontainers.image.licenses=MIT"
+  - image_templates:
+      # TODO(gonew): update image path
+      - "ghcr.io/mikecsmith/http-template:{{ .Version }}-arm64"
+    dockerfile: Dockerfile
+    use: buildx
+    goarch: arm64
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.source={{.GitURL}}"
+      - "--label=org.opencontainers.image.licenses=MIT"
+
+docker_manifests:
+  # TODO(gonew): update image path
+  - name_template: "ghcr.io/mikecsmith/http-template:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/mikecsmith/http-template:{{ .Version }}-amd64"
+      - "ghcr.io/mikecsmith/http-template:{{ .Version }}-arm64"
+  # TODO(gonew): update image path
+  - name_template: "ghcr.io/mikecsmith/http-template:latest"
+    image_templates:
+      - "ghcr.io/mikecsmith/http-template:{{ .Version }}-amd64"
+      - "ghcr.io/mikecsmith/http-template:{{ .Version }}-arm64"
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  disable: true
