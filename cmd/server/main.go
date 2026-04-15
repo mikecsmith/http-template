@@ -114,10 +114,17 @@ func run(
 	//   (b) any goroutine registered via g.Go returns a non-nil error.
 	g, gCtx := errgroup.WithContext(ctx)
 
+	// cfg.RequestTimeout is NOT mapped to http.Server.ReadTimeout
+	// here — ReadTimeout only governs the time the server waits to
+	// read an incoming request (headers + body), not the time the
+	// handler is allowed to run. This template originally conflated
+	// the two because the flag is called --request-timeout, but the
+	// intent (strictly bound handler execution) is satisfied by
+	// http.TimeoutHandler wrapping inside NewServer. See server.go
+	// for the handler graph layering.
 	httpServer := &http.Server{
 		Addr:         net.JoinHostPort(cfg.Host, cfg.Port),
 		Handler:      NewServer(cfg),
-		ReadTimeout:  cfg.RequestTimeout,
 		WriteTimeout: cfg.WriteTimeout,
 		IdleTimeout:  cfg.IdleTimeout,
 		// BaseContext is called once by Serve with the bound listener,
