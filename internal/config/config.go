@@ -62,7 +62,7 @@ func ParseConfig(args []string, getenv func(string) string) (Config, error) {
 
 	flags.StringVar(&cfg.Port, "port", DefaultPort, "The port used by the HTTP server")
 	flags.StringVar(&cfg.Host, "host", DefaultHost, "The host used by the HTTP server")
-	flags.DurationVar(&cfg.RequestTimeout, "request-timeout", DefaultRequestTimeout, "Maximum duration to wait for a request to complete")
+	flags.DurationVar(&cfg.RequestTimeout, "request-timeout", DefaultRequestTimeout, "Maximum duration a handler is allowed to run before the server returns 503 (enforced via http.TimeoutHandler)")
 	flags.DurationVar(&cfg.WriteTimeout, "write-timeout", DefaultWriteTimeout, "Maximum duration to attempt writing a response")
 	flags.DurationVar(&cfg.IdleTimeout, "idle-timeout", DefaultIdleTimeout, "Maximum duration to wait for a request when keep-alive is enabled")
 	flags.DurationVar(&cfg.ShutdownTimeout, "shutdown-timeout", DefaultShutdownTimeout, "Maximum duration to wait before shutting down")
