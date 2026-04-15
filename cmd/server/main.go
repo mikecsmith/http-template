@@ -157,26 +157,48 @@ func run(
 		return nil
 	})
 
-	// Shutdown watcher. Blocks until gCtx cancels (signal, parent cancel,
-	// or a sibling goroutine errored), then calls Shutdown with a bounded
-	// timeout. The shutdown context is derived from context.Background
-	// rather than gCtx because gCtx is already cancelled at this point —
-	// we need a fresh deadline to bound the shutdown itself. The same
-	// bounded context is used to flush and tear down the MeterProvider
-	// before returning, so pending metric records get one last push at
-	// any exporter that was configured.
+	// Shutdown watcher. Blocks until gCtx cancels (signal, parent
+	// cancel, or a sibling goroutine errored), then drains the HTTP
+	// server and flushes metrics sequentially with INDEPENDENT
+	// bounded contexts.
+	//
+	// Independent contexts matter: a busy HTTP shutdown can burn the
+	// entire cfg.ShutdownTimeout waiting on in-flight requests, and
+	// if metrics shutdown shared the same context it would find it
+	// already expired and drop pending exports on the floor. Each
+	// phase gets its own fresh deadline so both have a fair chance
+	// to do their job. Worst-case wall time is 2*ShutdownTimeout,
+	// which is acceptable in exchange for not losing data.
+	//
+	// Sequential (not concurrent) ordering is deliberate: the HTTP
+	// server drains its in-flight requests first, which can emit
+	// final metrics via otelhttp; running metrics shutdown after
+	// ensures those final records are captured by the provider
+	// before its exporters tear down. The contexts are derived from
+	// context.Background rather than gCtx because gCtx is already
+	// cancelled at this point.
+	//
+	// Both errors are joined so a failure in one does not hide a
+	// failure in the other.
 	g.Go(func() error {
 		<-gCtx.Done()
 		slog.InfoContext(ctx, "Server shutting down")
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
-		defer shutdownCancel()
-		if err := httpServer.Shutdown(shutdownCtx); err != nil {
-			return fmt.Errorf("http shutdown: %w", err)
+
+		httpCtx, httpCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+		httpErr := httpServer.Shutdown(httpCtx)
+		httpCancel()
+		if httpErr != nil {
+			httpErr = fmt.Errorf("http shutdown: %w", httpErr)
 		}
-		if err := metricsShutdown(shutdownCtx); err != nil {
-			return fmt.Errorf("metrics shutdown: %w", err)
+
+		metricsCtx, metricsCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+		metricsErr := metricsShutdown(metricsCtx)
+		metricsCancel()
+		if metricsErr != nil {
+			metricsErr = fmt.Errorf("metrics shutdown: %w", metricsErr)
 		}
-		return nil
+
+		return errors.Join(httpErr, metricsErr)
 	})
 
 	return g.Wait()
