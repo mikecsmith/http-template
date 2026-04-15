@@ -3,7 +3,9 @@ package logger_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
+	"sync"
 	"testing"
 
 	"github.com/mikecsmith/http-template/internal/logger"
@@ -76,6 +78,69 @@ func TestAttrs(t *testing.T) {
 		}
 		if len(childAttrs) != 2 {
 			t.Fatalf("got %d attrs, want 2", len(childAttrs))
+		}
+	})
+
+	// Regression test for a data race: without slices.Clip in
+	// WithAttrs, sibling goroutines deriving their own child
+	// contexts from the same parent race to write into the parent's
+	// shared backing array whenever there is spare capacity. Each
+	// child would then see whichever sibling appended last, instead
+	// of its own marker.
+	//
+	// The parent here is built by chained WithAttrs calls so that
+	// Go's slice growth gives the backing array spare capacity —
+	// the exact condition that triggers the bug. With the fix in
+	// place, each child's append allocates a fresh array and every
+	// goroutine sees only its own marker.
+	//
+	// Run with `go test -race ./internal/logger/...` to catch the
+	// write-write race explicitly; the functional assertions below
+	// also fail on the bugged version without the race detector
+	// because sibling writes clobber each other's marker element.
+	t.Run("concurrent derivation from shared parent is race-free", func(t *testing.T) {
+		parent := context.Background()
+		parent = logger.WithAttrs(parent, slog.String("a", "1"))
+		parent = logger.WithAttrs(parent, slog.String("b", "2"))
+		parent = logger.WithAttrs(parent, slog.String("c", "3"))
+
+		const workers = 100
+		var wg sync.WaitGroup
+		errs := make([]string, workers)
+		wg.Add(workers)
+		for i := range workers {
+			go func() {
+				defer wg.Done()
+				marker := fmt.Sprintf("goroutine-%d", i)
+				child := logger.WithAttrs(parent, slog.String("marker", marker))
+
+				attrs := logger.Attrs(child)
+				if len(attrs) != 4 {
+					errs[i] = fmt.Sprintf("len=%d want 4", len(attrs))
+					return
+				}
+				// Parent's three attrs must still be intact, in order.
+				wantParent := []string{"1", "2", "3"}
+				for j, want := range wantParent {
+					if got := attrs[j].Value.String(); got != want {
+						errs[i] = fmt.Sprintf("parent attr %d: got %q want %q", j, got, want)
+						return
+					}
+				}
+				// The marker must be exactly the value this goroutine
+				// appended — not one written by a sibling racing into
+				// the same backing-array slot.
+				if got := attrs[3].Value.String(); got != marker {
+					errs[i] = fmt.Sprintf("marker: got %q want %q", got, marker)
+				}
+			}()
+		}
+		wg.Wait()
+
+		for i, e := range errs {
+			if e != "" {
+				t.Errorf("worker %d: %s", i, e)
+			}
 		}
 	})
 }
