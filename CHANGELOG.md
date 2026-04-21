@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.3](https://github.com/mikecsmith/http-template/compare/v0.0.2...v0.0.3) (2026-04-15)
+
+
+### Bug Fixes
+
+* data race in logger WithAttrs ([412cadb](https://github.com/mikecsmith/http-template/commit/412cadbdfa7637c9741d2601a653bf454649a0af))
+* data race in logger WithAttrs ([0f123c1](https://github.com/mikecsmith/http-template/commit/0f123c1557a9b4321e31a1e169e8f934ae2b507d))
+* independent contexts for metrics and server ([1a3f708](https://github.com/mikecsmith/http-template/commit/1a3f708cde9f8f6a78eab0a6e0a855bf0b740b8f))
+* independent contexts for metrics and server ([cdf0c65](https://github.com/mikecsmith/http-template/commit/cdf0c658a7c6cbd75ac7f2e57824b7cdba18c9ed))
+* request timeouts != read timeouts ([6144324](https://github.com/mikecsmith/http-template/commit/6144324663fe2f6a8e0c07475973ff04a1496c3c))
+* request timeouts != read timeouts ([451158e](https://github.com/mikecsmith/http-template/commit/451158e30cb2e6c9a8b249717de002d03c825bd5))
+
 ## [0.0.2](https://github.com/mikecsmith/http-template/compare/v0.0.1...v0.0.2) (2026-04-10)
 
 
