@@ -1,10 +1,10 @@
 module github.com/mikecsmith/http-template
 
-go 1.26
+go 1.26.0
 
 require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0
-	golang.org/x/sync v0.22.0
+	golang.org/x/sync v0.23.0
 )
 
 require (
