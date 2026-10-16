@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0
-	golang.org/x/sync v0.23.0
+	golang.org/x/sync v0.24.0
 )
 
 require (
